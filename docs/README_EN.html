@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="../icon.ico" type="image/x-icon">
+<title>Hydride System Memory Manager Service</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    max-width: 860px;
+    margin: 40px auto;
+    padding: 0 20px;
+    color: #1a1a1a;
+    line-height: 1.7;
+    background: #fff;
+  }
+  h1 { font-size: 2em; border-bottom: 2px solid #0366d6; padding-bottom: 8px; }
+  h2 { font-size: 1.4em; margin-top: 32px; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; }
+  h3 { font-size: 1.1em; margin-top: 24px; }
+  code {
+    background: #f5f5f5;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.9em;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+  }
+  blockquote {
+    border-left: 4px solid #0366d6;
+    margin: 0;
+    padding: 8px 16px;
+    background: #f0f6ff;
+    color: #444;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0;
+  }
+  th, td {
+    border: 1px solid #ddd;
+    padding: 8px 12px;
+    text-align: left;
+  }
+  th { background: #f5f5f5; font-weight: 600; }
+  tr:nth-child(even) { background: #fafafa; }
+  a { color: #0366d6; }
+  hr { border: none; border-top: 1px solid #e0e0e0; margin: 32px 0; }
+</style>
+</head>
+<body>
+
+<h1>Hydride System Memory Manager Service</h1>
+
+<p>Hydride System Memory Manager Service — a lightweight and high-performance Windows system memory management service that periodically flushes process working sets to reduce physical memory pressure.</p>
+
+<p>Built with high-performance <strong>C#</strong> on <strong>.NET 10</strong>, compiled to a single native binary via <strong>NativeAOT</strong> — no .NET Runtime required on the target machine.</p>
+
+<blockquote>This project is built as a wrapper around the old version of <strong>PCL2</strong> (Plain Craft Launcher 2, by <strong>龙腾猫跃</strong>), repackaging its core memory-cleanup engine into a long-running service with dynamic scheduling and automatic cleanup.</blockquote>
+
+<h2>How It Works</h2>
+
+<ol>
+  <li>On startup, decodes <code>libs/LIBPCL2.dll</code> (base64) into <code>hsmmts.exe</code> under <code>%WINDIR%\Temp\HSMM</code>.</li>
+  <li>Enters a 60-second loop, dynamically adjusting cleanup frequency across 8 tiers (every 12.5%):
+    <ul>
+      <li><strong>0–12.5%</strong> → 1 cleanup/min</li>
+      <li><strong>12.5–25%</strong> → 2 cleanups/min</li>
+      <li><strong>25–37.5%</strong> → 3 cleanups/min</li>
+      <li><strong>37.5–50%</strong> → 4 cleanups/min</li>
+      <li><strong>50–62.5%</strong> → 5 cleanups/min</li>
+      <li><strong>62.5–75%</strong> → 6 cleanups/min</li>
+      <li><strong>75–87.5%</strong> → 7 cleanups/min</li>
+      <li><strong>87.5–100%</strong> → 8 cleanups/min</li>
+    </ul>
+  </li>
+  <li>Each cleanup runs <code>hsmmts.exe --memory</code> once, comparing memory usage before and after; cleanups are spread evenly across the cycle.</li>
+  <li>On exit, forcefully terminates all <code>hsmmts</code> processes and deletes <code>%WINDIR%\Temp\HSMM</code>.</li>
+</ol>
+
+<h2>Requirements</h2>
+
+<h3>To run</h3>
+<ul>
+  <li>Windows 10 / 11 (or Windows Server equivalent)</li>
+  <li>Administrator privileges (UAC manifest included)</li>
+  <li><a href="https://github.com/NXRKYMANE/Silanes">Silanes</a> — prerequisite framework that registers Hydride as a Windows service</li>
+</ul>
+
+<h3>To build</h3>
+<ul>
+  <li><a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 SDK</a></li>
+  <li>Visual Studio 2022+ with "Desktop development with C++" workload (MSVC toolchain + Windows SDK)</li>
+  <li>or Visual Studio Build Tools with the same components</li>
+  <li>NSIS 3.x (only needed for building the installer)</li>
+</ul>
+
+<h2>Build</h2>
+
+<p>Build from a <strong>Developer Command Prompt for VS</strong> (or PowerShell with VS environment loaded):</p>
+
+<pre><code>dotnet build</code></pre>
+
+<p>The publish output is a single native executable:</p>
+<ul>
+  <li><code>hydride_svc64.exe</code> — self-contained native binary (NativeAOT), no runtime dependencies</li>
+</ul>
+
+<h2>NSIS Installer</h2>
+
+<p>Build the installer package:</p>
+
+<pre><code># 1. Build the project (as above)
+# 2. Install NSIS (https://nsis.sourceforge.io/Download)
+# 3. Compile the installer
+makensis deployment.nsi</code></pre>
+
+<p>Output: <code>publish\hydride-svc-win-x64-setup-v1.0.0.exe</code>.</p>
+
+<p>Installer features:</p>
+<ul>
+  <li>Bilingual UI (English / Simplified Chinese) with a language selector on first install, remembered for later runs</li>
+  <li>Smart version comparison: silent upgrade, reinstall prompt for the same version, downgrade warning for older versions</li>
+  <li>Installs <code>hydride_svc64.exe</code>, <code>libs/</code>, and documentation to the selected directory</li>
+  <li>Writes the service YAML config with the correct install path</li>
+  <li>Registers and starts the Windows service via Silanes, with exit-code checks throughout (Abort / Retry / Ignore on failure)</li>
+  <li>In silent mode (<code>/S</code>), waits for the old process to exit before overwriting</li>
+  <li>Custom icon and wizard bitmap, full version metadata on the installer</li>
+  <li>On uninstall, deletes the service via Silanes and removes all files</li>
+</ul>
+
+<blockquote>
+<strong>Silanes Integration Notes:</strong>
+<ol>
+  <li><strong>YAML Path Handling</strong> — YAML handles backslashes in unquoted values natively (e.g. <code>C:\Program Files\...</code>). No escaping or replacement needed — just write the path directly without quotes.</li>
+  <li><strong>Silanes Path Lookup</strong> — <code>silanes64.exe</code> may not be in PATH within the installer process. Read the full path from registry: <code>HKLM\Software\Microsoft\Windows\CurrentVersion\App Paths\silanes64.exe</code>.</li>
+  <li><strong>Exit-Code Checks</strong> — Use <code>nsExec::ExecToStack</code> to capture command output and the exit code; register / start / delete failures show an Abort / Retry / Ignore dialog so errors never fail silently.</li>
+  <li><strong>NSIS Variable Expansion</strong> — Single-quoted strings in NSIS do not expand variables; use double quotes.</li>
+</ol>
+</blockquote>
+
+<h2>Deployment</h2>
+
+<p>Use the NSIS installer from the <a href="https://github.com/NXRKYMANE/Hydride/releases">Releases</a> page for a complete setup with automatic service registration.</p>
+
+<p>For manual deployment:</p>
+<ol>
+  <li>Copy <code>hydride_svc64.exe</code> from the <code>publish/</code> directory to the target machine.</li>
+  <li>Place <code>libs/LIBPCL2.dll</code> in the same directory as <code>hydride_svc64.exe</code>.</li>
+  <li>Ensure <a href="https://github.com/NXRKYMANE/Silanes">Silanes</a> is installed (adds <code>silanes64.exe</code> to system PATH).</li>
+  <li>Register the service: <code>silanes64.exe -m --install libs\hydride_svc64.yaml</code></li>
+  <li>Start the service: <code>silanes64.exe -m --start hydride_svc64</code></li>
+</ol>
+
+<h2>Disclaimer</h2>
+
+<p><strong>This project is essentially a rather trivial utility. I cannot guarantee that this service will be effective on all computers. It is strongly recommended that you download a PCL2 launcher and test its built-in memory cleanup feature first (there is also a description of this feature inside the launcher) to see if there are any side effects. If you experience negligible results or even increased performance overhead, please remove this service from your computer immediately.</strong></p>
+
+<h2>License</h2>
+
+<p>Copyright &copy; 2026 NXRKYMANE SOFTWARE</p>
+
+</body>
+</html>
