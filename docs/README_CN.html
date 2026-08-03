@@ -74,7 +74,7 @@
 
 <ol>
   <li>启动时将 <code>libs/LIBPCL2.dll</code>（base64）解码为 <code>hsmmts.exe</code>，放到 <code>%WINDIR%\Temp\HSMM</code>。</li>
-  <li>每 60 秒一个周期，按内存使用率分 8 档调整清理频率（每 12.5% 一档）：使用率越高，清理越频繁（每分钟 1~8 次）。</li>
+  <li>每 60 秒一个周期，按内存使用率分 5 档调整清理频率（每 20% 一档）：使用率越高，清理越频繁（每分钟 1~5 次）。</li>
   <li>每次清理运行一次 <code>hsmmts.exe --memory</code>，对比清理前后内存，任务均匀分布在整个周期内。</li>
   <li>退出时强制终止所有 <code>hsmmts</code> 进程并删除 <code>%WINDIR%\Temp\HSMM</code>。</li>
 </ol>
@@ -89,7 +89,7 @@
 │   └── publish/                     # 构建产物（发布 exe 与安装包）
 ├── misc/                            # 资源文件
 │   ├── Background.bmp / .png        # 安装向导左侧背景图（源图 + 位图）
-│   ├── Proj.bmp                     # 安装向导右上角小图
+│   ├── Csharp.bmp / .png            # 安装向导右上角小图（源图 + 位图）
 │   ├── Proj.ico                     # 安装包与程序图标
 │   └── Proj.png                     # 图标源图
 ├── docs/                            # 网页版文档
@@ -146,7 +146,7 @@
 # 3. 编译安装包
 ISCC.exe csharp\installer.iss</code></pre>
 
-<p>输出：<code>csharp\publish\hydride-svc-win-x64-setup-v1.2.0.exe</code>。</p>
+<p>输出：<code>csharp\publish\hydride-svc-win-x64-setup-v1.3.0.exe</code>。</p>
 
 <p>安装包特性：</p>
 <ul>

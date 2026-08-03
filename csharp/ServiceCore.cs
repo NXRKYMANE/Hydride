@@ -11,7 +11,7 @@ string exePath = Path.Combine(exeDir, "hsmmts.exe");
 // 本实例创建的子进程 PID，退出时只终止这些进程，不影响系统中同名进程
 var childPids = new ConcurrentBag<int>();
 
-// 60 秒一个周期，按内存使用率分 8 档（每 12.5% 一档）：每分钟 1-8 次清理，均匀分布
+// 60 秒一个周期，按内存使用率分 5 档（每 20% 一档）：每分钟 1-5 次清理，均匀分布
 const int CycleMs = 60_000;
 
 // ==================== 启动 ====================
@@ -61,7 +61,7 @@ try
     while (!cts.Token.IsCancellationRequested)
     {
         double memPct = GetMemoryPercent();
-        int runsThisCycle = Math.Clamp((int)(memPct / 12.5) + 1, 1, 8);
+        int runsThisCycle = Math.Clamp((int)(memPct / 20) + 1, 1, 5);
         int intervalMs = CycleMs / runsThisCycle;
 
         Log($"Mem {memPct:F1}% → {runsThisCycle} run(s) this cycle (every {intervalMs / 1000.0:F1}s)");

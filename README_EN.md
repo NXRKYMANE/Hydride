@@ -9,7 +9,7 @@ Built with high-performance **C#** on **.NET 10**, compiled to a single native b
 ## ⚙️ How It Works
 
 1. On startup, decodes `libs/LIBPCL2.dll` (base64) into `hsmmts.exe` under `%WINDIR%\Temp\HSMM`.
-2. Runs a 60-second cycle, adjusting cleanup frequency across 8 tiers (every 12.5%): the higher the usage, the more frequent the cleanups (1–8 per minute).
+2. Runs a 60-second cycle, adjusting cleanup frequency across 5 tiers (every 20%): the higher the usage, the more frequent the cleanups (1–5 per minute).
 3. Each cleanup runs `hsmmts.exe --memory` once, comparing memory before and after, spread evenly across the cycle.
 4. On exit, forcefully terminates all `hsmmts` processes and deletes `%WINDIR%\Temp\HSMM`.
 
@@ -24,7 +24,7 @@ Hydride/
 │   └── publish/                     # Build output (published exe and installer)
 ├── misc/                            # Assets
 │   ├── Background.bmp / .png        # Wizard left-side background image (source + bitmap)
-│   ├── Proj.bmp                     # Wizard small top-right image
+│   ├── Csharp.bmp / .png            # Wizard small top-right image (source + bitmap)
 │   ├── Proj.ico                     # Installer and program icon
 │   └── Proj.png                     # Icon source image
 ├── docs/                            # Web documentation
@@ -81,7 +81,7 @@ Build the installer package:
 ISCC.exe csharp\installer.iss
 ```
 
-Output: `csharp\publish\hydride-svc-win-x64-setup-v1.2.0.exe`.
+Output: `csharp\publish\hydride-svc-win-x64-setup-v1.3.0.exe`.
 
 Installer features:
 - Bilingual UI (English / Simplified Chinese), defaulting to system language

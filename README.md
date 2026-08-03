@@ -9,7 +9,7 @@ Hydride System Memory Manager Service — 轻量高性能的 Windows 系统内�
 ## ⚙️ 工作原理
 
 1. 启动时将 `libs/LIBPCL2.dll`（base64）解码为 `hsmmts.exe`，放到 `%WINDIR%\Temp\HSMM`。
-2. 每 60 秒一个周期，按内存使用率分 8 档调整清理频率（每 12.5% 一档）：使用率越高，清理越频繁（每分钟 1~8 次）。
+2. 每 60 秒一个周期，按内存使用率分 5 档调整清理频率（每 20% 一档）：使用率越高，清理越频繁（每分钟 1~5 次）。
 3. 每次清理运行一次 `hsmmts.exe --memory`，对比清理前后内存，任务均匀分布在整个周期内。
 4. 退出时强制终止所有 `hsmmts` 进程并删除 `%WINDIR%\Temp\HSMM`。
 
@@ -24,7 +24,7 @@ Hydride/
 │   └── publish/                     # 构建产物（发布 exe 与安装包）
 ├── misc/                            # 资源文件
 │   ├── Background.bmp / .png        # 安装向导左侧背景图（源图 + 位图）
-│   ├── Proj.bmp                     # 安装向导右上角小图
+│   ├── Csharp.bmp / .png            # 安装向导右上角小图（源图 + 位图）
 │   ├── Proj.ico                     # 安装包与程序图标
 │   └── Proj.png                     # 图标源图
 ├── docs/                            # 网页版文档
@@ -81,7 +81,7 @@ dotnet build
 ISCC.exe csharp\installer.iss
 ```
 
-输出：`csharp\publish\hydride-svc-win-x64-setup-v1.2.0.exe`。
+输出：`csharp\publish\hydride-svc-win-x64-setup-v1.3.0.exe`。
 
 安装包特性：
 - 中英文双语界面，默认跟随系统语言

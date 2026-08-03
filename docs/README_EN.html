@@ -74,7 +74,7 @@
 
 <ol>
   <li>On startup, decodes <code>libs/LIBPCL2.dll</code> (base64) into <code>hsmmts.exe</code> under <code>%WINDIR%\Temp\HSMM</code>.</li>
-  <li>Runs a 60-second cycle, adjusting cleanup frequency across 8 tiers (every 12.5%): the higher the usage, the more frequent the cleanups (1–8 per minute).</li>
+  <li>Runs a 60-second cycle, adjusting cleanup frequency across 5 tiers (every 20%): the higher the usage, the more frequent the cleanups (1–5 per minute).</li>
   <li>Each cleanup runs <code>hsmmts.exe --memory</code> once, comparing memory before and after, spread evenly across the cycle.</li>
   <li>On exit, forcefully terminates all <code>hsmmts</code> processes and deletes <code>%WINDIR%\Temp\HSMM</code>.</li>
 </ol>
@@ -89,7 +89,7 @@
 │   └── publish/                     # Build output (published exe and installer)
 ├── misc/                            # Assets
 │   ├── Background.bmp / .png        # Wizard left-side background image (source + bitmap)
-│   ├── Proj.bmp                     # Wizard small top-right image
+│   ├── Csharp.bmp / .png            # Wizard small top-right image (source + bitmap)
 │   ├── Proj.ico                     # Installer and program icon
 │   └── Proj.png                     # Icon source image
 ├── docs/                            # Web documentation
@@ -146,7 +146,7 @@
 # 3. Compile the installer
 ISCC.exe csharp\installer.iss</code></pre>
 
-<p>Output: <code>csharp\publish\hydride-svc-win-x64-setup-v1.2.0.exe</code>.</p>
+<p>Output: <code>csharp\publish\hydride-svc-win-x64-setup-v1.3.0.exe</code>.</p>
 
 <p>Installer features:</p>
 <ul>
