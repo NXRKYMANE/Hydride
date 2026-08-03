@@ -9,17 +9,44 @@ Built with high-performance **C#** on **.NET 10**, compiled to a single native b
 ## ⚙️ How It Works
 
 1. On startup, decodes `libs/LIBPCL2.dll` (base64) into `hsmmts.exe` under `%WINDIR%\Temp\HSMM`.
-2. Enters a 60-second loop, dynamically adjusting cleanup frequency across 8 tiers (every 12.5%):
-   - **0–12.5%** → 1 cleanup/min
-   - **12.5–25%** → 2 cleanups/min
-   - **25–37.5%** → 3 cleanups/min
-   - **37.5–50%** → 4 cleanups/min
-   - **50–62.5%** → 5 cleanups/min
-   - **62.5–75%** → 6 cleanups/min
-   - **75–87.5%** → 7 cleanups/min
-   - **87.5–100%** → 8 cleanups/min
-3. Each cleanup runs `hsmmts.exe --memory` once, comparing memory usage before and after; cleanups are spread evenly across the cycle.
+2. Runs a 60-second cycle, adjusting cleanup frequency across 8 tiers (every 12.5%): the higher the usage, the more frequent the cleanups (1–8 per minute).
+3. Each cleanup runs `hsmmts.exe --memory` once, comparing memory before and after, spread evenly across the cycle.
 4. On exit, forcefully terminates all `hsmmts` processes and deletes `%WINDIR%\Temp\HSMM`.
+
+## 📁 Project Structure
+
+```
+Hydride/
+├── csharp/                          # C# service source and build
+│   ├── ServiceCore.cs               # Main program (memory monitoring + dynamic cleanup scheduling, top-level statements entry)
+│   ├── Hydride.csproj               # Project file (.NET 10 / NativeAOT / single-file publish)
+│   ├── installer.iss                # Inno Setup installer script
+│   └── publish/                     # Build output (published exe and installer)
+├── misc/                            # Assets
+│   ├── Background.bmp / .png        # Wizard left-side background image (source + bitmap)
+│   ├── Proj.bmp                     # Wizard small top-right image
+│   ├── Proj.ico                     # Installer and program icon
+│   └── Proj.png                     # Icon source image
+├── docs/                            # Web documentation
+│   ├── README_CN.html
+│   └── README_EN.html
+├── libs/
+│   └── LIBPCL2.dll                  # Memory cleanup engine (base64-encoded, decoded to hsmmts.exe at runtime)
+├── .github/                         # Issue / PR templates
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.md
+│   │   └── feature_request.md
+│   └── PULL_REQUEST_TEMPLATE.md
+├── app.manifest                     # UAC administrator manifest
+├── BUILD.ps1                        # One-click build script (compile → publish → package)
+├── .gitattributes                   # Git language stats exclusion (installer / peripheral scripts)
+├── AGENTS.md                        # Project rules (AI collaboration conventions)
+├── CODE_OF_CONDUCT.md               # Code of Conduct
+├── CONTRIBUTING.md                  # Contribution guide
+├── LICENSE
+├── README.md / README_EN.md
+└── SECURITY.md                      # Security policy
+```
 
 ## 📋 Requirements
 
@@ -30,9 +57,8 @@ Built with high-performance **C#** on **.NET 10**, compiled to a single native b
 
 **To build:**
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Visual Studio 2022+ with "Desktop development with C++" workload (MSVC toolchain + Windows SDK)
-- or Visual Studio Build Tools with the same components
-- NSIS 3.x (only needed for building the installer)
+- Visual Studio 2022+ or Build Tools (with "Desktop development with C++" workload)
+- Inno Setup 7 (only needed for packaging)
 
 ## 🛠️ Build
 
@@ -42,52 +68,49 @@ Build from a **Developer Command Prompt for VS** (or PowerShell with VS environm
 dotnet build
 ```
 
-The publish output is a single native executable:
-- `hydride_svc64.exe` — self-contained native binary (NativeAOT), no runtime dependencies
+The publish output is a single native executable: `hydride_svc64.exe` (NativeAOT, no runtime dependencies).
 
-## 📦 NSIS Installer
+## 📦 Inno Setup Installer
 
 Build the installer package:
 
 ```bash
 # 1. Build the project (as above)
-# 2. Install NSIS (https://nsis.sourceforge.io/Download)
+# 2. Install Inno Setup (https://jrsoftware.org/isdl.php)
 # 3. Compile the installer
-makensis deployment.nsi
+ISCC.exe csharp\installer.iss
 ```
 
-Output: `publish\hydride-svc-win-x64-setup-v${PRODUCT_VERSION}.exe` (currently v1.0.0).
+Output: `csharp\publish\hydride-svc-win-x64-setup-v1.2.0.exe`.
 
 Installer features:
-- Bilingual UI (English / Simplified Chinese) with a language selector on first install, remembered for later runs
-- Smart version comparison: silent upgrade, reinstall prompt for the same version, downgrade warning for older versions
-- Installs `hydride_svc64.exe`, `libs/`, and documentation to the selected directory
-- Writes the service YAML config with the correct install path
-- Registers and starts the Windows service via Silanes, with exit-code checks throughout (Abort / Retry / Ignore on failure)
-- In silent mode (`/S`), waits for the old process to exit before overwriting
-- Custom icon and wizard bitmap, full version metadata on the installer
+- Bilingual UI (English / Simplified Chinese), defaulting to system language
+- Smart version comparison: silent upgrade, reinstall prompt for same version, downgrade warning
+- Installs `hydride_svc64.exe`, `libs/`, and docs; writes the service YAML config
+- Registers and starts the service via Silanes with exit-code checks (Abort / Retry / Ignore on failure)
+- In silent mode (`/S`), waits for the old process to exit
 - On uninstall, deletes the service via Silanes and removes all files
 
-> **Silanes Integration Notes:**
-> 1. **YAML Path Handling** — YAML handles backslashes in unquoted values natively (e.g. `C:\Program Files\...`). No escaping or replacement needed — just write the path directly without quotes.
-> 2. **Silanes Path Lookup** — `silanes64.exe` may not be in PATH within the installer process. Read the full path from registry: `HKLM\Software\Microsoft\Windows\CurrentVersion\App Paths\silanes64.exe`.
-> 3. **Exit-Code Checks** — Use `nsExec::ExecToStack` to capture command output and the exit code; register / start / delete failures show an Abort / Retry / Ignore dialog so errors never fail silently.
-> 4. **NSIS Variable Expansion** — Single-quoted strings in NSIS do not expand variables; use double quotes.
+> **Silanes Integration Notes:** YAML paths need no escaping; silanes is located via the registry key `HKLM\...\App Paths\silanes64.exe`; `ExecAndCaptureOutput` captures exit codes and shows an Abort / Retry / Ignore dialog on failure.
 
 ## 🚀 Deployment
 
-Use the NSIS installer from the [Releases](https://github.com/NXRKYMANE/Hydride/releases) page for a complete setup with automatic service registration.
+Use the Inno Setup installer from [Releases](https://github.com/NXRKYMANE/Hydride/releases) for a complete setup with automatic service registration.
 
 For manual deployment:
-1. Copy `hydride_svc64.exe` from the `publish/` directory to the target machine.
-2. Place `libs/LIBPCL2.dll` in the same directory as `hydride_svc64.exe`.
-3. Ensure [Silanes](https://github.com/NXRKYMANE/Silanes) is installed (adds `silanes64.exe` to system PATH).
+1. Copy `hydride_svc64.exe` from `csharp/publish/` to the target machine.
+2. Place `libs/LIBPCL2.dll` in the same directory as the exe.
+3. Install [Silanes](https://github.com/NXRKYMANE/Silanes) (registers `silanes64.exe` to PATH).
 4. Register the service: `silanes64.exe -m --install libs\hydride_svc64.yaml`
 5. Start the service: `silanes64.exe -m --start hydride_svc64`
 
 ## ⚠️ Disclaimer
 
-**This project is essentially a rather trivial utility. I cannot guarantee that this service will be effective on all computers. It is strongly recommended that you download a PCL2 launcher and test its built-in memory cleanup feature first (there is also a description of this feature inside the launcher) to see if there are any side effects. If you experience negligible results or even increased performance overhead, please remove this service from your computer immediately.**
+**This project is essentially a rather trivial utility and cannot be guaranteed to work on all computers. Test the built-in memory cleanup of a PCL2 launcher first and watch for side effects; if there is no noticeable improvement or the overhead increases, remove this service immediately.**
+
+## 💖 Sponsor
+
+If this project helps you, feel free to [sponsor us](https://ifdian.net/a/NXRKYMANE).
 
 ## 📄 License
 

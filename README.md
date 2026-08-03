@@ -8,18 +8,45 @@ Hydride System Memory Manager Service — 轻量高性能的 Windows 系统内�
 
 ## ⚙️ 工作原理
 
-1. 启动时，将 `libs/LIBPCL2.dll`（base64 编码）解码为 `hsmmts.exe`，放置到 `%WINDIR%\Temp\HSMM` 下。
-2. 进入 60 秒循环，根据当前内存使用率在 8 个档位间动态调整清理频率（每 12.5% 一档）：
-   - **0–12.5%** → 每分钟 1 次
-   - **12.5–25%** → 每分钟 2 次
-   - **25–37.5%** → 每分钟 3 次
-   - **37.5–50%** → 每分钟 4 次
-   - **50–62.5%** → 每分钟 5 次
-   - **62.5–75%** → 每分钟 6 次
-   - **75–87.5%** → 每分钟 7 次
-   - **87.5–100%** → 每分钟 8 次
-3. 每次清理运行一次 `hsmmts.exe --memory`，对比清理前后的内存使用量，清理均匀分布在整个周期内。
-4. 退出时，强制终止所有 `hsmmts` 进程并删除 `%WINDIR%\Temp\HSMM`。
+1. 启动时将 `libs/LIBPCL2.dll`（base64）解码为 `hsmmts.exe`，放到 `%WINDIR%\Temp\HSMM`。
+2. 每 60 秒一个周期，按内存使用率分 8 档调整清理频率（每 12.5% 一档）：使用率越高，清理越频繁（每分钟 1~8 次）。
+3. 每次清理运行一次 `hsmmts.exe --memory`，对比清理前后内存，任务均匀分布在整个周期内。
+4. 退出时强制终止所有 `hsmmts` 进程并删除 `%WINDIR%\Temp\HSMM`。
+
+## 📁 项目结构
+
+```
+Hydride/
+├── csharp/                          # C# 服务源码与构建
+│   ├── ServiceCore.cs               # 主程序（内存监控 + 动态清理调度，顶层语句入口）
+│   ├── Hydride.csproj               # 项目文件（.NET 10 / NativeAOT / 单文件发布）
+│   ├── installer.iss                # Inno Setup 安装脚本
+│   └── publish/                     # 构建产物（发布 exe 与安装包）
+├── misc/                            # 资源文件
+│   ├── Background.bmp / .png        # 安装向导左侧背景图（源图 + 位图）
+│   ├── Proj.bmp                     # 安装向导右上角小图
+│   ├── Proj.ico                     # 安装包与程序图标
+│   └── Proj.png                     # 图标源图
+├── docs/                            # 网页版文档
+│   ├── README_CN.html
+│   └── README_EN.html
+├── libs/
+│   └── LIBPCL2.dll                  # 内存清理引擎（base64 封装，运行时解码为 hsmmts.exe）
+├── .github/                         # Issue / PR 模板
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.md
+│   │   └── feature_request.md
+│   └── PULL_REQUEST_TEMPLATE.md
+├── app.manifest                     # UAC 管理员权限清单
+├── BUILD.ps1                        # 一键构建脚本（编译 → 发布 → 打包）
+├── .gitattributes                   # Git 语言统计排除（安装脚本 / 周边脚本）
+├── AGENTS.md                        # 项目规则（AI 协作约定）
+├── CODE_OF_CONDUCT.md               # 行为准则
+├── CONTRIBUTING.md                  # 贡献指南
+├── LICENSE
+├── README.md / README_EN.md
+└── SECURITY.md                      # 安全政策
+```
 
 ## 📋 运行要求
 
@@ -30,9 +57,8 @@ Hydride System Memory Manager Service — 轻量高性能的 Windows 系统内�
 
 **构建：**
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Visual Studio 2022+，安装 "使用 C++ 的桌面开发" 工作负载（MSVC 工具链 + Windows SDK）
-- 或安装 Visual Studio Build Tools 并包含相同组件
-- NSIS 3.x（仅构建安装包时需要）
+- Visual Studio 2022+ 或 Build Tools（含 "使用 C++ 的桌面开发" 工作负载）
+- Inno Setup 7（仅打包时需要）
 
 ## 🛠️ 构建
 
@@ -42,52 +68,49 @@ Hydride System Memory Manager Service — 轻量高性能的 Windows 系统内�
 dotnet build
 ```
 
-发布产物为单个原生可执行文件：
-- `hydride_svc64.exe` — 独立原生二进制文件（NativeAOT），无运行时依赖
+发布产物为单个原生可执行文件：`hydride_svc64.exe`（NativeAOT，无运行时依赖）。
 
-## 📦 NSIS 安装包
+## 📦 Inno Setup 安装包
 
 构建安装包：
 
 ```bash
 # 1. 先构建项目（如上）
-# 2. 安装 NSIS（https://nsis.sourceforge.io/Download）
+# 2. 安装 Inno Setup（https://jrsoftware.org/isdl.php）
 # 3. 编译安装包
-makensis deployment.nsi
+ISCC.exe csharp\installer.iss
 ```
 
-输出：`publish\hydride-svc-win-x64-setup-v${PRODUCT_VERSION}.exe`（当前版本 v1.0.0）。
+输出：`csharp\publish\hydride-svc-win-x64-setup-v1.2.0.exe`。
 
 安装包特性：
-- 中英文双语界面，首次安装弹语言选择框，自动记忆选择
-- 智能版本比较：升级静默执行、同版本询问重装、旧版本降级警告
-- 将 `hydride_svc64.exe`、`libs/` 和文档安装到所选目录
-- 写入包含正确安装路径的服务 YAML 配置
-- 通过 Silanes 注册并启动 Windows 服务，全程退出码检查（失败弹「终止 / 重试 / 忽略」）
-- 静默模式（`/S`）下自动等待旧进程退出，避免覆盖运行中的 exe
-- 自定义图标与向导位图，安装包附带完整版本元数据
-- 卸载时通过 Silanes 删除服务，然后移除所有文件
+- 中英文双语界面，默认跟随系统语言
+- 智能版本比较：升级静默、同版本询问重装、降级警告
+- 安装 `hydride_svc64.exe`、`libs/` 与文档，写入服务 YAML 配置
+- 通过 Silanes 注册并启动服务，全程退出码检查（失败弹「终止 / 重试 / 忽略」）
+- 静默模式（`/S`）下自动等待旧进程退出
+- 卸载时通过 Silanes 删除服务并移除所有文件
 
-> **Silanes 集成注意事项：**
-> 1. **YAML 路径处理** — YAML 对不加引号的值原生支持反斜杠（如 `C:\Program Files\...`），无需转义或替换，直接书写路径即可。
-> 2. **Silanes 路径查找** — 安装器进程中 `silanes64.exe` 可能不在 PATH 中。从注册表 `HKLM\Software\Microsoft\Windows\CurrentVersion\App Paths\silanes64.exe` 读取完整路径。
-> 3. **退出码检查** — 使用 `nsExec::ExecToStack` 捕获命令输出与退出码，注册 / 启动 / 删除服务失败时弹「终止 / 重试 / 忽略」对话框，避免静默失败。
-> 4. **NSIS 变量展开** — NSIS 单引号字符串不展开变量，必须使用双引号。
+> **Silanes 集成要点：** YAML 无需转义路径；从注册表 `HKLM\...\App Paths\silanes64.exe` 定位 silanes；失败时用 `ExecAndCaptureOutput` 捕获退出码并弹「终止 / 重试 / 忽略」。
 
 ## 🚀 部署
 
-使用 [Releases](https://github.com/NXRKYMANE/Hydride/releases) 页面提供的 NSIS 安装包可实现完整安装和自动服务注册。
+使用 [Releases](https://github.com/NXRKYMANE/Hydride/releases) 的安装包即可完整安装并自动注册服务。
 
 手动部署：
-1. 将 `publish/` 目录中的 `hydride_svc64.exe` 复制到目标机器。
-2. 将 `libs/LIBPCL2.dll` 放置在与 `hydride_svc64.exe` 相同的目录下。
-3. 确保已安装 [Silanes](https://github.com/NXRKYMANE/Silanes)（会自动注册 `silanes64.exe` 到系统 PATH）。
+1. 将 `csharp/publish/` 中的 `hydride_svc64.exe` 复制到目标机器。
+2. 将 `libs/LIBPCL2.dll` 与 exe 放同一目录。
+3. 安装 [Silanes](https://github.com/NXRKYMANE/Silanes)（自动注册 `silanes64.exe` 到 PATH）。
 4. 注册服务：`silanes64.exe -m --install libs\hydride_svc64.yaml`
 5. 启动服务：`silanes64.exe -m --start hydride_svc64`
 
 ## ⚠️ 免责声明
 
-**本项目本质上只是一个比较鸡肋的工具。我无法保证本服务对所有计算机都有效。强烈建议你先下载 PCL2 启动器，测试其内置的内存清理功能（启动器内部也有对该功能的说明），看看是否存在任何副作用。如果没有明显效果甚至导致性能负担加重，请立即从计算机中移除本服务。**
+**本项目本质上只是一个比较鸡肋的工具，无法保证对所有计算机有效。建议先下载 PCL2 启动器测试其内存清理功能并留意副作用；若无明显效果甚至加重负担，请立即卸载本服务。**
+
+## 💖 赞助
+
+如果这个项目对你有帮助，欢迎[赞助支持](https://ifdian.net/a/NXRKYMANE) 。
 
 ## 📄 许可证
 

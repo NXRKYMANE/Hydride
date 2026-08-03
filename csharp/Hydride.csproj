@@ -6,22 +6,22 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <OutputType>Exe</OutputType>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationManifest>..\app.manifest</ApplicationManifest>
 
     <!-- 图标 -->
-    <ApplicationIcon>misc\ServiceIcon.ico</ApplicationIcon>
+    <ApplicationIcon>..\misc\Proj.ico</ApplicationIcon>
 
     <!-- 输出 exe 名称 -->
     <AssemblyName>hydride_svc64</AssemblyName>
 
     <!-- 版本号 -->
-    <Version>1.0.0</Version>
+    <Version>1.2.0</Version>
 
     <!-- 程序集元数据 -->
     <Company>NXRKYMANE SOFTWARE</Company>
     <Product>Hydride System Memory Manager Service</Product>
     <Description>Windows system memory management service</Description>
-    <Copyright>Copyright © $([System.DateTime]::Now.Year) NXRKYMANE SOFTWARE</Copyright>
+    <Copyright>Copyright (C) $([System.DateTime]::Now.Year) NXRKYMANE SOFTWARE</Copyright>
     <NeutralLanguage>en</NeutralLanguage>
 
     <DebugType>none</DebugType>
