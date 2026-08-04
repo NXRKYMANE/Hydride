@@ -81,7 +81,7 @@ Build the installer package:
 ISCC.exe csharp\installer.iss
 ```
 
-Output: `csharp\publish\hydride-svc-win-x64-setup-v1.3.0.exe`.
+Output: `csharp\publish\hydride-svc-win-x64-setup-v1.4.0.exe`.
 
 Installer features:
 - Bilingual UI (English / Simplified Chinese), defaulting to system language
@@ -101,8 +101,8 @@ For manual deployment:
 1. Copy `hydride_svc64.exe` from `csharp/publish/` to the target machine.
 2. Place `libs/LIBPCL2.dll` in the same directory as the exe.
 3. Install [Silanes](https://github.com/NXRKYMANE/Silanes) (registers `silanes64.exe` to PATH).
-4. Register the service: `silanes64.exe -m --install libs\hydride_svc64.yaml`
-5. Start the service: `silanes64.exe -m --start hydride_svc64`
+4. Register the service: `silanes64.exe --install libs\hydride_svc64.yaml`
+5. Start the service: `silanes64.exe --start hydride_svc64`
 
 ## ⚠️ Disclaimer
 

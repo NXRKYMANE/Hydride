@@ -81,7 +81,7 @@ dotnet build
 ISCC.exe csharp\installer.iss
 ```
 
-输出：`csharp\publish\hydride-svc-win-x64-setup-v1.3.0.exe`。
+输出：`csharp\publish\hydride-svc-win-x64-setup-v1.4.0.exe`。
 
 安装包特性：
 - 中英文双语界面，默认跟随系统语言
@@ -101,8 +101,8 @@ ISCC.exe csharp\installer.iss
 1. 将 `csharp/publish/` 中的 `hydride_svc64.exe` 复制到目标机器。
 2. 将 `libs/LIBPCL2.dll` 与 exe 放同一目录。
 3. 安装 [Silanes](https://github.com/NXRKYMANE/Silanes)（自动注册 `silanes64.exe` 到 PATH）。
-4. 注册服务：`silanes64.exe -m --install libs\hydride_svc64.yaml`
-5. 启动服务：`silanes64.exe -m --start hydride_svc64`
+4. 注册服务：`silanes64.exe --install libs\hydride_svc64.yaml`
+5. 启动服务：`silanes64.exe --start hydride_svc64`
 
 ## ⚠️ 免责声明
 

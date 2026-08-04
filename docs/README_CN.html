@@ -146,7 +146,7 @@
 # 3. 编译安装包
 ISCC.exe csharp\installer.iss</code></pre>
 
-<p>输出：<code>csharp\publish\hydride-svc-win-x64-setup-v1.3.0.exe</code>。</p>
+<p>输出：<code>csharp\publish\hydride-svc-win-x64-setup-v1.4.0.exe</code>。</p>
 
 <p>安装包特性：</p>
 <ul>
@@ -169,8 +169,8 @@ ISCC.exe csharp\installer.iss</code></pre>
   <li>将 <code>csharp/publish/</code> 中的 <code>hydride_svc64.exe</code> 复制到目标机器。</li>
   <li>将 <code>libs/LIBPCL2.dll</code> 与 exe 放同一目录。</li>
   <li>安装 <a href="https://github.com/NXRKYMANE/Silanes">Silanes</a>（自动注册 <code>silanes64.exe</code> 到 PATH）。</li>
-  <li>注册服务：<code>silanes64.exe -m --install libs\hydride_svc64.yaml</code></li>
-  <li>启动服务：<code>silanes64.exe -m --start hydride_svc64</code></li>
+  <li>注册服务：<code>silanes64.exe --install libs\hydride_svc64.yaml</code></li>
+  <li>启动服务：<code>silanes64.exe --start hydride_svc64</code></li>
 </ol>
 
 <h2>免责声明</h2>

@@ -2,7 +2,7 @@
 ; 功能：双语（默认跟随系统语言）/ 版本比较 / Silanes 服务注册与卸载 / 不创建开始菜单快捷方式
 
 #define MyAppName "Hydride"
-#define MyAppVersion "1.3.0"
+#define MyAppVersion "1.4.0"
 #define MyAppPublisher "Copyright (C) 2026 NXRKYMANE SOFTWARE"
 #define MyAppURL "https://github.com/NXRKYMANE/Hydride"
 #define MyAppExeName "hydride_svc64.exe"
@@ -479,7 +479,7 @@ begin
 
   // 2. 删除旧服务（停止并移除服务及其进程）
   AddLog('Cleaning up old service...');
-  SilanesExec('-m --delete hydride_svc64', DummyErr);
+  SilanesExec('--delete hydride_svc64', DummyErr);
 
   // 3. 强制终止残余的 hydride_svc64.exe 进程（含手动运行的实例）
   AddLog('Terminating leftover processes...');
@@ -512,12 +512,12 @@ begin
 
   // 2. 注册服务（日志文本与 NSIS 版一致）
   AddLog('Registering Hydride service...');
-  if not RunSilanesCommand(ExpandConstant('-m --install "{app}\libs\hydride_svc64.yaml"'), CustomMessage('RegisterFail')) then
+  if not RunSilanesCommand(ExpandConstant('--install "{app}\libs\hydride_svc64.yaml"'), CustomMessage('RegisterFail')) then
     Exit;
 
   // 3. 启动服务
   AddLog('Starting Hydride service...');
-  if not RunSilanesCommand('-m --start hydride_svc64', CustomMessage('StartFail')) then
+  if not RunSilanesCommand('--start hydride_svc64', CustomMessage('StartFail')) then
     Exit;
 end;
 
@@ -548,7 +548,7 @@ begin
   end;
 
   // 2. 删除服务：失败弹「终止 / 重试 / 忽略」
-  if not RunSilanesCommand('-m --delete hydride_svc64', CustomMessage('DeleteFail')) then
+  if not RunSilanesCommand('--delete hydride_svc64', CustomMessage('DeleteFail')) then
     Result := False;
 end;
 

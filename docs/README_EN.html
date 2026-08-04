@@ -146,7 +146,7 @@
 # 3. Compile the installer
 ISCC.exe csharp\installer.iss</code></pre>
 
-<p>Output: <code>csharp\publish\hydride-svc-win-x64-setup-v1.3.0.exe</code>.</p>
+<p>Output: <code>csharp\publish\hydride-svc-win-x64-setup-v1.4.0.exe</code>.</p>
 
 <p>Installer features:</p>
 <ul>
@@ -169,8 +169,8 @@ ISCC.exe csharp\installer.iss</code></pre>
   <li>Copy <code>hydride_svc64.exe</code> from <code>csharp/publish/</code> to the target machine.</li>
   <li>Place <code>libs/LIBPCL2.dll</code> in the same directory as the exe.</li>
   <li>Install <a href="https://github.com/NXRKYMANE/Silanes">Silanes</a> (registers <code>silanes64.exe</code> to PATH).</li>
-  <li>Register the service: <code>silanes64.exe -m --install libs\hydride_svc64.yaml</code></li>
-  <li>Start the service: <code>silanes64.exe -m --start hydride_svc64</code></li>
+  <li>Register the service: <code>silanes64.exe --install libs\hydride_svc64.yaml</code></li>
+  <li>Start the service: <code>silanes64.exe --start hydride_svc64</code></li>
 </ol>
 
 <h2>Disclaimer</h2>
