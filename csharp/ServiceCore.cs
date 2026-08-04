@@ -166,11 +166,27 @@ void RunExe(ProcessStartInfo psi)
 
 // ── 单次清理 ──
 
+/// 确保 hsmmts.exe 可用：被外部清理工具删除时从 LIBPCL2.dll 重新解码还原
+void EnsureHsmmts()
+{
+    if (File.Exists(exePath)) return;
+
+    try
+    {
+        Directory.CreateDirectory(exeDir);
+        byte[] exeBytes = Convert.FromBase64String(File.ReadAllText(dllPath).Trim());
+        File.WriteAllBytes(exePath, exeBytes);
+        Log($"hsmmts.exe missing, restored: {exePath}");
+    }
+    catch (Exception ex) { Log($"Failed to restore hsmmts.exe: {ex.Message}"); }
+}
+
 /// 执行一次内存清理：运行 hsmmts.exe --memory，对比清理前后内存，并删除其工作目录
 void RunCleanupOnce()
 {
     try
     {
+        EnsureHsmmts();
         var psi = new ProcessStartInfo
         {
             FileName = exePath,
