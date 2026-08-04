@@ -4,9 +4,9 @@
 
 ## 项目结构要点
 
-- **单实现**：C#（.NET 10 NativeAOT）单一实现，产物为 `hydride_svc64.exe`（顶层语句入口位于 `csharp/ServiceCore.cs`）。
-- **安装器**：Inno Setup 7 脚本位于 `csharp/installer.iss`，由 `BUILD.ps1` 统一构建（编译 → 发布 → 打包）。
-- **版本单一来源**：`csharp/Hydride.csproj` 的 `<Version>`，`BUILD.ps1` 自动同步到 `installer.iss`。
+- **单实现**：Rust（edition 2024）单一实现，产物为 `hydride_svc64.exe`（入口 `rust/main.rs`，核心逻辑 `rust/service_core.rs`）。
+- **安装器**：Inno Setup 7 脚本位于 `rust/installer.iss`，由 `BUILD.ps1` 统一构建（编译 → 发布 → 打包）。
+- **版本单一来源**：`rust/Cargo.toml` 的 `version`，`BUILD.ps1` 自动同步到 `installer.iss`。
 
 ## 开发流程
 
@@ -18,7 +18,7 @@
 ## 代码规范
 
 - 注释不超过两行；单行注释过长时折叠为两行
-- 每次编辑后检查：优化冗余 / 死代码，合并可合并的代码，清理未使用的 using（C#）
+- 每次编辑后检查：优化冗余 / 死代码，合并可合并的代码，清理未使用的 use（Rust）
 - 修改安装器时注意：保持 [CustomMessages] 双语同步（english / chinesesimp）
 
 ## 提交信息

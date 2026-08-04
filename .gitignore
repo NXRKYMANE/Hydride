@@ -1,7 +1,8 @@
-# 构建产物（csproj 位于 csharp 子目录；规则无前导斜杠，可覆盖任意层级）
+# 构建产物（规则无前导斜杠，可覆盖任意层级）
 bin/
 obj/
 publish/
+target/
 .vs/
 *.user
 .vscode/

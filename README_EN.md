@@ -1,30 +1,33 @@
 # 🧠 Hydride System Memory Manager Service
 
-Hydride System Memory Manager Service — a lightweight and high-performance Windows system memory management service that periodically flushes process working sets to reduce physical memory pressure.
+Hydride System Memory Manager Service — a lightweight and high-performance Windows system memory management service that periodically flushes process working sets and system caches to reduce physical memory pressure.
 
-Built with high-performance **C#** on **.NET 10**, compiled to a single native binary via **NativeAOT** — no .NET Runtime required on the target machine.
+Built with high-performance **Rust**, compiled to a single native binary (~270 KB) — no runtime required on the target machine.
 
-> This project is built as a wrapper around the old version of **PCL2** (Plain Craft Launcher 2, by **龙腾猫跃**), repackaging its core memory-cleanup engine into a long-running service with dynamic scheduling and automatic cleanup.
+> This project is built as a wrapper around the old version of **PCL2** (Plain Craft Launcher 2, by **龙腾猫跃**), combining its core memory-cleanup engine with system Standby-cache cleanup, repackaged into a long-running service with dual-engine dynamic scheduling and automatic cleanup.
 
 ## ⚙️ How It Works
 
 1. On startup, decodes `libs/LIBPCL2.dll` (base64) into `hsmmts.exe` under `%WINDIR%\Temp\HSMM`.
-2. Runs a 60-second cycle, adjusting cleanup frequency across 5 tiers (every 20%): the higher the usage, the more frequent the cleanups (1–5 per minute).
-3. Each cleanup runs `hsmmts.exe --memory` once, comparing memory before and after, spread evenly across the cycle.
+2. Runs a 60-second cycle with two engines, interleaved by memory-usage tiers:
+   - **PCL2 engine** (flush working sets): every 25% tier, 1–4 runs/min, logged in `Used` format
+   - **Standby engine** (built-in, flush cache): every 50% tier, 1–2 runs/min, logged in `Standby` format
+3. Each PCL2 cleanup runs `hsmmts.exe --memory` once, comparing memory before and after, spread evenly across the cycle.
 4. On exit, forcefully terminates all `hsmmts` processes and deletes `%WINDIR%\Temp\HSMM`.
 
 ## 📁 Project Structure
 
 ```
 Hydride/
-├── csharp/                          # C# service source and build
-│   ├── ServiceCore.cs               # Main program (memory monitoring + dynamic cleanup scheduling, top-level statements entry)
-│   ├── Hydride.csproj               # Project file (.NET 10 / NativeAOT / single-file publish)
+├── rust/                            # Rust service source and build (main implementation)
+│   ├── service_core.rs              # Main program (dual-engine scheduling + monitoring + cleanup)
+│   ├── main.rs                      # Program entry
+│   ├── Cargo.toml                   # Project file (edition 2024 / extreme release optimization)
 │   ├── installer.iss                # Inno Setup installer script
 │   └── publish/                     # Build output (published exe and installer)
 ├── misc/                            # Assets
 │   ├── Background.bmp / .png        # Wizard left-side background image (source + bitmap)
-│   ├── Csharp.bmp / .png            # Wizard small top-right image (source + bitmap)
+│   ├── Rust.bmp / .png              # Wizard small top-right image (source + bitmap)
 │   ├── Proj.ico                     # Installer and program icon
 │   └── Proj.png                     # Icon source image
 ├── docs/                            # Web documentation
@@ -56,19 +59,18 @@ Hydride/
 - [Silanes](https://github.com/NXRKYMANE/Silanes) — prerequisite framework that registers Hydride as a Windows service
 
 **To build:**
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Visual Studio 2022+ or Build Tools (with "Desktop development with C++" workload)
+- [Rust](https://www.rust-lang.org/tools/install) (stable, edition 2024)
 - Inno Setup 7 (only needed for packaging)
 
 ## 🛠️ Build
 
-Build from a **Developer Command Prompt for VS** (or PowerShell with VS environment loaded):
+Run from the project root:
 
 ```bash
-dotnet build
+.\BUILD.ps1
 ```
 
-The publish output is a single native executable: `hydride_svc64.exe` (NativeAOT, no runtime dependencies).
+The publish output is a single native executable: `hydride_svc64.exe` (Rust, no runtime dependencies).
 
 ## 📦 Inno Setup Installer
 
@@ -78,10 +80,10 @@ Build the installer package:
 # 1. Build the project (as above)
 # 2. Install Inno Setup (https://jrsoftware.org/isdl.php)
 # 3. Compile the installer
-ISCC.exe csharp\installer.iss
+ISCC.exe rust\installer.iss
 ```
 
-Output: `csharp\publish\hydride-svc-win-x64-setup-v1.4.0.exe`.
+Output: `rust\publish\hydride-svc-win-x64-setup-v2.0.0.exe`.
 
 Installer features:
 - Bilingual UI (English / Simplified Chinese), defaulting to system language
@@ -98,7 +100,7 @@ Installer features:
 Use the Inno Setup installer from [Releases](https://github.com/NXRKYMANE/Hydride/releases) for a complete setup with automatic service registration.
 
 For manual deployment:
-1. Copy `hydride_svc64.exe` from `csharp/publish/` to the target machine.
+1. Copy `hydride_svc64.exe` from `rust/publish/` to the target machine.
 2. Place `libs/LIBPCL2.dll` in the same directory as the exe.
 3. Install [Silanes](https://github.com/NXRKYMANE/Silanes) (registers `silanes64.exe` to PATH).
 4. Register the service: `silanes64.exe --install libs\hydride_svc64.yaml`

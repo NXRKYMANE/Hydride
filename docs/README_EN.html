@@ -64,32 +64,38 @@
 
 <h1>Hydride System Memory Manager Service</h1>
 
-<p>Hydride System Memory Manager Service — a lightweight and high-performance Windows system memory management service that periodically flushes process working sets to reduce physical memory pressure.</p>
+<p>Hydride System Memory Manager Service — a lightweight and high-performance Windows system memory management service that periodically flushes process working sets and system caches to reduce physical memory pressure.</p>
 
-<p>Built with high-performance <strong>C#</strong> on <strong>.NET 10</strong>, compiled to a single native binary via <strong>NativeAOT</strong> — no .NET Runtime required on the target machine.</p>
+<p>Built with high-performance <strong>Rust</strong>, compiled to a single native binary (~270 KB) — no runtime required on the target machine.</p>
 
-<blockquote>This project is built as a wrapper around the old version of <strong>PCL2</strong> (Plain Craft Launcher 2, by <strong>龙腾猫跃</strong>), repackaging its core memory-cleanup engine into a long-running service with dynamic scheduling and automatic cleanup.</blockquote>
+<blockquote>This project is built as a wrapper around the old version of <strong>PCL2</strong> (Plain Craft Launcher 2, by <strong>龙腾猫跃</strong>), combining its core memory-cleanup engine with system Standby-cache cleanup, repackaged into a long-running service with dual-engine dynamic scheduling and automatic cleanup.</blockquote>
 
 <h2>How It Works</h2>
 
 <ol>
   <li>On startup, decodes <code>libs/LIBPCL2.dll</code> (base64) into <code>hsmmts.exe</code> under <code>%WINDIR%\Temp\HSMM</code>.</li>
-  <li>Runs a 60-second cycle, adjusting cleanup frequency across 5 tiers (every 20%): the higher the usage, the more frequent the cleanups (1–5 per minute).</li>
-  <li>Each cleanup runs <code>hsmmts.exe --memory</code> once, comparing memory before and after, spread evenly across the cycle.</li>
+  <li>Runs a 60-second cycle with two engines, interleaved by memory-usage tiers:
+    <ul>
+      <li><strong>PCL2 engine</strong> (flush working sets): every 25% tier, 1–4 runs/min, logged in <code>Used</code> format</li>
+      <li><strong>Standby engine</strong> (built-in, flush cache): every 50% tier, 1–2 runs/min, logged in <code>Standby</code> format</li>
+    </ul>
+  </li>
+  <li>Each PCL2 cleanup runs <code>hsmmts.exe --memory</code> once, comparing memory before and after, spread evenly across the cycle.</li>
   <li>On exit, forcefully terminates all <code>hsmmts</code> processes and deletes <code>%WINDIR%\Temp\HSMM</code>.</li>
 </ol>
 
 <h2>Project Structure</h2>
 
 <pre><code>Hydride/
-├── csharp/                          # C# service source and build
-│   ├── ServiceCore.cs               # Main program (memory monitoring + dynamic cleanup scheduling, top-level statements entry)
-│   ├── Hydride.csproj               # Project file (.NET 10 / NativeAOT / single-file publish)
+├── rust/                            # Rust service source and build (main implementation)
+│   ├── service_core.rs              # Main program (dual-engine scheduling + monitoring + cleanup)
+│   ├── main.rs                      # Program entry
+│   ├── Cargo.toml                   # Project file (edition 2024 / extreme release optimization)
 │   ├── installer.iss                # Inno Setup installer script
 │   └── publish/                     # Build output (published exe and installer)
 ├── misc/                            # Assets
 │   ├── Background.bmp / .png        # Wizard left-side background image (source + bitmap)
-│   ├── Csharp.bmp / .png            # Wizard small top-right image (source + bitmap)
+│   ├── Rust.bmp / .png              # Wizard small top-right image (source + bitmap)
 │   ├── Proj.ico                     # Installer and program icon
 │   └── Proj.png                     # Icon source image
 ├── docs/                            # Web documentation
@@ -124,18 +130,17 @@
 
 <h3>To build</h3>
 <ul>
-  <li><a href="https://dotnet.microsoft.com/download/dotnet/10.0">.NET 10 SDK</a></li>
-  <li>Visual Studio 2022+ or Build Tools (with "Desktop development with C++" workload)</li>
+  <li><a href="https://www.rust-lang.org/tools/install">Rust</a> (stable, edition 2024)</li>
   <li>Inno Setup 7 (only needed for packaging)</li>
 </ul>
 
 <h2>Build</h2>
 
-<p>Build from a <strong>Developer Command Prompt for VS</strong> (or PowerShell with VS environment loaded):</p>
+<p>Run from the project root:</p>
 
-<pre><code>dotnet build</code></pre>
+<pre><code>.\BUILD.ps1</code></pre>
 
-<p>The publish output is a single native executable: <code>hydride_svc64.exe</code> (NativeAOT, no runtime dependencies).</p>
+<p>The publish output is a single native executable: <code>hydride_svc64.exe</code> (Rust, no runtime dependencies).</p>
 
 <h2>Inno Setup Installer</h2>
 
@@ -144,9 +149,9 @@
 <pre><code># 1. Build the project (as above)
 # 2. Install Inno Setup (https://jrsoftware.org/isdl.php)
 # 3. Compile the installer
-ISCC.exe csharp\installer.iss</code></pre>
+ISCC.exe rust\installer.iss</code></pre>
 
-<p>Output: <code>csharp\publish\hydride-svc-win-x64-setup-v1.4.0.exe</code>.</p>
+<p>Output: <code>rust\publish\hydride-svc-win-x64-setup-v2.0.0.exe</code>.</p>
 
 <p>Installer features:</p>
 <ul>
@@ -166,7 +171,7 @@ ISCC.exe csharp\installer.iss</code></pre>
 
 <p>For manual deployment:</p>
 <ol>
-  <li>Copy <code>hydride_svc64.exe</code> from <code>csharp/publish/</code> to the target machine.</li>
+  <li>Copy <code>hydride_svc64.exe</code> from <code>rust/publish/</code> to the target machine.</li>
   <li>Place <code>libs/LIBPCL2.dll</code> in the same directory as the exe.</li>
   <li>Install <a href="https://github.com/NXRKYMANE/Silanes">Silanes</a> (registers <code>silanes64.exe</code> to PATH).</li>
   <li>Register the service: <code>silanes64.exe --install libs\hydride_svc64.yaml</code></li>

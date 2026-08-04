@@ -1,30 +1,33 @@
 # 🧠 Hydride System Memory Manager Service
 
-Hydride System Memory Manager Service — 轻量高性能的 Windows 系统内存管理服务，定期清理进程工作集以降低物理内存压力。
+Hydride System Memory Manager Service — 轻量高性能的 Windows 系统内存管理服务，定期清理进程工作集与系统缓存以降低物理内存压力。
 
-使用高性能 **C#** 开发，基于 **.NET 10**，通过 **NativeAOT** 编译为单个原生二进制文件 — 目标机器无需安装 .NET 运行时。
+使用高性能 **Rust** 开发，编译为单个原生二进制文件（约 270 KB）— 目标机器无需安装任何运行时。
 
-> 本项目基于旧版 **PCL2**（Plain Craft Launcher 2，作者 **龙腾猫跃**）封装构建，将其核心内存清理引擎重新打包为具有动态调度和自动清理功能的长期运行服务。
+> 本项目基于旧版 **PCL2**（Plain Craft Launcher 2，作者 **龙腾猫跃**）封装构建，将其核心内存清理引擎与系统 Standby 缓存清理结合，重新打包为具有双引擎动态调度和自动清理功能的长期运行服务。
 
 ## ⚙️ 工作原理
 
 1. 启动时将 `libs/LIBPCL2.dll`（base64）解码为 `hsmmts.exe`，放到 `%WINDIR%\Temp\HSMM`。
-2. 每 60 秒一个周期，按内存使用率分 5 档调整清理频率（每 20% 一档）：使用率越高，清理越频繁（每分钟 1~5 次）。
-3. 每次清理运行一次 `hsmmts.exe --memory`，对比清理前后内存，任务均匀分布在整个周期内。
+2. 每 60 秒一个周期，双引擎按内存使用率分档交错执行：
+   - **PCL2 引擎**（清工作集）：每 25% 一档，1–4 次/分，日志按 `Used` 格式
+   - **Standby 引擎**（内置，清缓存）：每 50% 一档，1–2 次/分，日志按 `Standby` 格式
+3. 每次 PCL2 清理运行一次 `hsmmts.exe --memory`，对比清理前后内存，任务均匀分布在整个周期内。
 4. 退出时强制终止所有 `hsmmts` 进程并删除 `%WINDIR%\Temp\HSMM`。
 
 ## 📁 项目结构
 
 ```
 Hydride/
-├── csharp/                          # C# 服务源码与构建
-│   ├── ServiceCore.cs               # 主程序（内存监控 + 动态清理调度，顶层语句入口）
-│   ├── Hydride.csproj               # 项目文件（.NET 10 / NativeAOT / 单文件发布）
+├── rust/                            # Rust 服务源码与构建（主实现）
+│   ├── service_core.rs              # 主程序（双引擎调度 + 内存监控 + 清理逻辑）
+│   ├── main.rs                      # 程序入口
+│   ├── Cargo.toml                   # 项目文件（edition 2024 / release 极致优化）
 │   ├── installer.iss                # Inno Setup 安装脚本
 │   └── publish/                     # 构建产物（发布 exe 与安装包）
 ├── misc/                            # 资源文件
 │   ├── Background.bmp / .png        # 安装向导左侧背景图（源图 + 位图）
-│   ├── Csharp.bmp / .png            # 安装向导右上角小图（源图 + 位图）
+│   ├── Rust.bmp / .png              # 安装向导右上角小图（源图 + 位图）
 │   ├── Proj.ico                     # 安装包与程序图标
 │   └── Proj.png                     # 图标源图
 ├── docs/                            # 网页版文档
@@ -56,19 +59,18 @@ Hydride/
 - [Silanes](https://github.com/NXRKYMANE/Silanes) — 前置框架，用于将 Hydride 注册为 Windows 系统服务
 
 **构建：**
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Visual Studio 2022+ 或 Build Tools（含 "使用 C++ 的桌面开发" 工作负载）
+- [Rust](https://www.rust-lang.org/tools/install)（stable，edition 2024）
 - Inno Setup 7（仅打包时需要）
 
 ## 🛠️ 构建
 
-在 **VS 开发者命令提示符**（或已加载 VS 环境的 PowerShell）中执行：
+在项目根目录执行：
 
 ```bash
-dotnet build
+.\BUILD.ps1
 ```
 
-发布产物为单个原生可执行文件：`hydride_svc64.exe`（NativeAOT，无运行时依赖）。
+发布产物为单个原生可执行文件：`hydride_svc64.exe`（Rust，无运行时依赖）。
 
 ## 📦 Inno Setup 安装包
 
@@ -78,10 +80,10 @@ dotnet build
 # 1. 先构建项目（如上）
 # 2. 安装 Inno Setup（https://jrsoftware.org/isdl.php）
 # 3. 编译安装包
-ISCC.exe csharp\installer.iss
+ISCC.exe rust\installer.iss
 ```
 
-输出：`csharp\publish\hydride-svc-win-x64-setup-v1.4.0.exe`。
+输出：`rust\publish\hydride-svc-win-x64-setup-v2.0.0.exe`。
 
 安装包特性：
 - 中英文双语界面，默认跟随系统语言
@@ -98,7 +100,7 @@ ISCC.exe csharp\installer.iss
 使用 [Releases](https://github.com/NXRKYMANE/Hydride/releases) 的安装包即可完整安装并自动注册服务。
 
 手动部署：
-1. 将 `csharp/publish/` 中的 `hydride_svc64.exe` 复制到目标机器。
+1. 将 `rust/publish/` 中的 `hydride_svc64.exe` 复制到目标机器。
 2. 将 `libs/LIBPCL2.dll` 与 exe 放同一目录。
 3. 安装 [Silanes](https://github.com/NXRKYMANE/Silanes)（自动注册 `silanes64.exe` 到 PATH）。
 4. 注册服务：`silanes64.exe --install libs\hydride_svc64.yaml`

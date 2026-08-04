@@ -32,4 +32,4 @@
 - 单实例互斥：`Global\Hydride_HSMM_SingleInstance` 防止多实例争用同一临时目录
 - 退出时精准终止本实例创建的子进程（记录 PID 并校验进程名），避免误杀系统中同名进程
 - 清理引擎 `hsmmts.exe` 以隐藏窗口方式运行，工作目录为 `%WINDIR%\Temp\HSMM`，退出时整目录删除
-- NativeAOT 单文件发布，无运行时依赖，降低供应链面
+- Rust 单文件发布（约 270 KB），无运行时依赖，降低供应链面

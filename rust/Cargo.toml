@@ -1,0 +1,23 @@
+[package]
+name = "hydride"
+version = "2.0.0"
+edition = "2024"
+
+[[bin]]
+name = "hydride_svc64"
+path = "main.rs"
+
+[dependencies]
+base64 = "0.22"
+ctrlc = "3.4"
+
+[build-dependencies]
+winresource = "0.1.31"
+chrono = "0.4"
+
+[profile.release]
+opt-level = 3
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
