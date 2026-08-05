@@ -43,7 +43,7 @@ Hydride/
 ├── app.manifest                     # UAC 管理员权限清单
 ├── BUILD.ps1                        # 一键构建脚本（编译 → 发布 → 打包）
 ├── .gitattributes                   # Git 语言统计排除（安装脚本 / 周边脚本）
-├── AGENTS.md                        # 项目规则（AI 协作约定）
+├── CLAUDE.md                        # 项目规则（AI 协作约定）
 ├── CODE_OF_CONDUCT.md               # 行为准则
 ├── CONTRIBUTING.md                  # 贡献指南
 ├── LICENSE
