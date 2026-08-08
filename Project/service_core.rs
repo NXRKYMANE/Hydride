@@ -85,11 +85,11 @@ pub fn main_entry() {
         .ok()
         .and_then(|p| p.parent().map(|d| d.to_path_buf()))
         .unwrap_or_default()
-        .join("libs")
+        .join("Libs")
         .join("LIBPCL2.dll");
 
     if !dll_path.exists() {
-        log(&format!("ERROR: libs\\LIBPCL2.dll not found (tried: {})", dll_path.display()));
+        log(&format!("ERROR: Libs\\LIBPCL2.dll not found (tried: {})", dll_path.display()));
         return;
     }
 

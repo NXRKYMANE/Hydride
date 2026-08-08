@@ -4,9 +4,9 @@
 
 ## 项目结构要点
 
-- **单实现**：Rust（edition 2024）单一实现，产物为 `hydride_svc64.exe`（入口 `rust/main.rs`，核心逻辑 `rust/service_core.rs`）。
-- **安装器**：Inno Setup 7 脚本位于 `rust/installer.iss`，由 `BUILD.ps1` 统一构建（编译 → 发布 → 打包）。
-- **版本单一来源**：`rust/Cargo.toml` 的 `version`，`BUILD.ps1` 自动同步到 `installer.iss`。
+- **单实现**：Rust（edition 2024）单一实现，产物为 `hydride_svc64.exe`（入口 `Project/main.rs`，核心逻辑 `Project/service_core.rs`）。
+- **安装器**：Inno Setup 7 脚本位于 `Project/installer.iss`，由 `BUILD.ps1` 统一构建（编译 → 发布 → 打包）。
+- **版本单一来源**：`Project/Cargo.toml` 的 `version`，`BUILD.ps1` 自动同步到 `installer.iss`。
 
 ## 开发流程
 

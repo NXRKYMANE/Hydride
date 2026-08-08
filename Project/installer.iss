@@ -2,7 +2,7 @@
 ; 功能：双语（默认跟随系统语言）/ 版本比较 / Silanes 服务注册与卸载 / 不创建开始菜单快捷方式
 
 #define MyAppName "Hydride"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "2.1.0"
 #define MyAppPublisher "Copyright (C) 2026 NXRKYMANE SOFTWARE"
 #define MyAppURL "https://github.com/NXRKYMANE/Hydride"
 #define MyAppExeName "hydride_svc64.exe"
@@ -21,16 +21,16 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-OutputDir=publish
+OutputDir=..\Publish
 OutputBaseFilename=hydride-svc-win-x64-setup-v{#MyAppVersion}
-SetupIconFile=..\misc\Proj.ico
+SetupIconFile=..\Misc\Proj.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=classic
 DisableWelcomePage=no
-WizardImageFile=..\misc\Background.bmp
-WizardSmallImageFile=..\misc\Rust.bmp
+WizardImageFile=..\Misc\Background.bmp
+WizardSmallImageFile=..\Misc\Rust.bmp
 CloseApplications=yes
 DisableDirPage=no
 DirExistsWarning=no
@@ -60,22 +60,16 @@ english.DeleteFail=Failed to delete service.%n%n%1%n%nAbort: exit uninstall  |  
 chinesesimp.DeleteFail=删除服务失败。%n%n%1%n%n「终止」退出卸载  「重试」重新尝试  「忽略」跳过并继续
 english.NoOutput=(no output captured; exit code %1)
 chinesesimp.NoOutput=（未捕获到输出；退出码 %1）
-english.ViewDoc=View Documentation
-chinesesimp.ViewDoc=查看中文文档
 english.PathTooLong=The selected installation folder is too long (%1 characters) and may cause the service registration to fail. Continue anyway?
 chinesesimp.PathTooLong=所选安装文件夹路径过长（%1 个字符），可能导致服务注册失败。仍要继续吗？
 
 [Files]
-Source: "publish\hydride_svc64.exe"; DestDir: "{app}"; Flags: ignoreversion; AfterInstall: LogFile('{app}\hydride_svc64.exe')
-Source: "..\misc\Proj.ico"; DestDir: "{app}"; DestName: "icon.ico"; Flags: ignoreversion; AfterInstall: LogFile('{app}\icon.ico')
-Source: "..\docs\*"; DestDir: "{app}\docs"; Flags: recursesubdirs createallsubdirs ignoreversion; AfterInstall: LogFile('{app}\docs\')
-Source: "..\libs\*"; DestDir: "{app}\libs"; Flags: recursesubdirs createallsubdirs ignoreversion; AfterInstall: LogFile('{app}\libs\')
+Source: "..\Publish\hydride_svc64.exe"; DestDir: "{app}"; Flags: ignoreversion; AfterInstall: LogFile('{app}\hydride_svc64.exe')
+Source: "..\Misc\Proj.ico"; DestDir: "{app}"; DestName: "icon.ico"; Flags: ignoreversion; AfterInstall: LogFile('{app}\icon.ico')
+Source: "..\Libs\*"; DestDir: "{app}\Libs"; Flags: recursesubdirs createallsubdirs ignoreversion; AfterInstall: LogFile('{app}\Libs\')
 
 [Registry]
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\hydride_svc64.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\hydride_svc64.exe"; Flags: uninsdeletekey
-
-[Run]
-Filename: "{code:GetDocPath}"; Description: "{cm:ViewDoc}"; Flags: postinstall nowait skipifsilent unchecked shellexec
 
 [Code]
 const
@@ -391,7 +385,7 @@ procedure CreateServiceYaml;
 var
   YamlPath: String;
 begin
-  YamlPath := ExpandConstant('{app}\libs\hydride_svc64.yaml');
+  YamlPath := ExpandConstant('{app}\Libs\hydride_svc64.yaml');
   SaveStringToFile(YamlPath,
     'service_name: hydride_svc64' + #13#10 +
     'service_display_name: Hydride System Memory Manager Service' + #13#10 +
@@ -489,7 +483,7 @@ begin
   WaitForOldProcess;
 
   // 5. 若旧安装目录与本次目标目录不同，删除旧目录残留文件
-  // （改目录更新时旧 exe/libs/卸载器会留在旧目录，此处统一清掉）
+  // （改目录更新时旧 exe/Libs/卸载器会留在旧目录，此处统一清掉）
   if RegQueryStringValue(HKLM, UninstallKey, 'InstallLocation', OldDir) or
      RegQueryStringValue(HKLM, NSISUninstallKey, 'InstallLocation', OldDir) then
   begin
@@ -507,12 +501,12 @@ end;
 // ── 服务注册：文件复制完成后调用（ssPostInstall）──
 procedure ConfigureService;
 begin
-  // 1. 写入服务 YAML（此时 {app}\libs 已复制就位）
+  // 1. 写入服务 YAML（此时 {app}\Libs 已复制就位）
   CreateServiceYaml;
 
   // 2. 注册服务（日志文本与 NSIS 版一致）
   AddLog('Registering Hydride service...');
-  if not RunSilanesCommand(ExpandConstant('--install "{app}\libs\hydride_svc64.yaml"'), CustomMessage('RegisterFail')) then
+  if not RunSilanesCommand(ExpandConstant('--install "{app}\Libs\hydride_svc64.yaml"'), CustomMessage('RegisterFail')) then
     Exit;
 
   // 3. 启动服务
@@ -550,13 +544,4 @@ begin
   // 2. 删除服务：失败弹「终止 / 重试 / 忽略」
   if not RunSilanesCommand('--delete hydride_svc64', CustomMessage('DeleteFail')) then
     Result := False;
-end;
-
-// ── 完成页文档：按当前语言返回文档路径（中文界面 → 中文文档） ──
-function GetDocPath(Param: String): String;
-begin
-  if ActiveLanguage = 'chinesesimp' then
-    Result := ExpandConstant('{app}\docs\README_CN.html')
-  else
-    Result := ExpandConstant('{app}\docs\README_EN.html');
 end;

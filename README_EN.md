@@ -8,7 +8,7 @@ Built with high-performance **Rust**, compiled to a single native binary (~270 K
 
 ## ⚙️ How It Works
 
-1. On startup, decodes `libs/LIBPCL2.dll` (base64) into `hsmmts.exe` under `%WINDIR%\Temp\HSMM`.
+1. On startup, decodes `Libs/LIBPCL2.dll` (base64) into `hsmmts.exe` under `%WINDIR%\Temp\HSMM`.
 2. Runs a 60-second cycle with two engines, interleaved by memory-usage tiers:
    - **PCL2 engine** (flush working sets): every 25% tier, 1–4 runs/min, logged in `Used` format
    - **Standby engine** (built-in, flush cache): every 50% tier, 1–2 runs/min, logged in `Standby` format
@@ -19,22 +19,19 @@ Built with high-performance **Rust**, compiled to a single native binary (~270 K
 
 ```
 Hydride/
-├── rust/                            # Rust service source and build (main implementation)
+├── Project/                          # Rust service source and build (main implementation)
 │   ├── service_core.rs              # Main program (dual-engine scheduling + monitoring + cleanup)
 │   ├── main.rs                      # Program entry
 │   ├── Cargo.toml                   # Project file (edition 2024 / extreme release optimization)
-│   ├── installer.iss                # Inno Setup installer script
-│   └── publish/                     # Build output (published exe and installer)
-├── misc/                            # Assets
+│   └── installer.iss                # Inno Setup installer script
+├── Misc/                            # Assets
 │   ├── Background.bmp / .png        # Wizard left-side background image (source + bitmap)
 │   ├── Rust.bmp / .png              # Wizard small top-right image (source + bitmap)
 │   ├── Proj.ico                     # Installer and program icon
 │   └── Proj.png                     # Icon source image
-├── docs/                            # Web documentation
-│   ├── README_CN.html
-│   └── README_EN.html
-├── libs/
+├── Libs/
 │   └── LIBPCL2.dll                  # Memory cleanup engine (base64-encoded, decoded to hsmmts.exe at runtime)
+├── Publish/                         # Build output (published exe and installer)
 ├── .github/                         # Issue / PR templates
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── bug_report.md
@@ -80,15 +77,15 @@ Build the installer package:
 # 1. Build the project (as above)
 # 2. Install Inno Setup (https://jrsoftware.org/isdl.php)
 # 3. Compile the installer
-ISCC.exe rust\installer.iss
+ISCC.exe Project\installer.iss
 ```
 
-Output: `rust\publish\hydride-svc-win-x64-setup-v2.0.0.exe`.
+Output: `Publish\hydride-svc-win-x64-setup-v2.1.0.exe`.
 
 Installer features:
 - Bilingual UI (English / Simplified Chinese), defaulting to system language
 - Smart version comparison: silent upgrade, reinstall prompt for same version, downgrade warning
-- Installs `hydride_svc64.exe`, `libs/`, and docs; writes the service YAML config
+- Installs `hydride_svc64.exe`, `Libs/`; writes the service YAML config
 - Registers and starts the service via Silanes with exit-code checks (Abort / Retry / Ignore on failure)
 - In silent mode (`/S`), waits for the old process to exit
 - On uninstall, deletes the service via Silanes and removes all files
@@ -100,10 +97,10 @@ Installer features:
 Use the Inno Setup installer from [Releases](https://github.com/NXRKYMANE/Hydride/releases) for a complete setup with automatic service registration.
 
 For manual deployment:
-1. Copy `hydride_svc64.exe` from `rust/publish/` to the target machine.
-2. Place `libs/LIBPCL2.dll` in the same directory as the exe.
-3. Install [Silanes](https://github.com/NXRKYMANE/Silanes) (registers `silanes64.exe` to PATH).
-4. Register the service: `silanes64.exe --install libs\hydride_svc64.yaml`
+1. Copy `hydride_svc64.exe` from `Publish/` to the target machine.
+2. Place `Libs/LIBPCL2.dll` in the same directory as the exe.
+3. Install [Silanes](https://github.com/NXRKYMANE/Silanes) (registers `silanes64.exe` to PATH automatically).
+4. Register the service: `silanes64.exe --install Libs\hydride_svc64.yaml`
 5. Start the service: `silanes64.exe --start hydride_svc64`
 
 ## ⚠️ Disclaimer

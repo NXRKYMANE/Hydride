@@ -1,7 +1,7 @@
 # 构建产物（规则无前导斜杠，可覆盖任意层级）
 bin/
 obj/
-publish/
+Publish/
 target/
 .vs/
 *.user

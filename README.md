@@ -8,7 +8,7 @@ Hydride System Memory Manager Service — 轻量高性能的 Windows 系统内�
 
 ## ⚙️ 工作原理
 
-1. 启动时将 `libs/LIBPCL2.dll`（base64）解码为 `hsmmts.exe`，放到 `%WINDIR%\Temp\HSMM`。
+1. 启动时将 `Libs/LIBPCL2.dll`（base64）解码为 `hsmmts.exe`，放到 `%WINDIR%\Temp\HSMM`。
 2. 每 60 秒一个周期，双引擎按内存使用率分档交错执行：
    - **PCL2 引擎**（清工作集）：每 25% 一档，1–4 次/分，日志按 `Used` 格式
    - **Standby 引擎**（内置，清缓存）：每 50% 一档，1–2 次/分，日志按 `Standby` 格式
@@ -19,22 +19,19 @@ Hydride System Memory Manager Service — 轻量高性能的 Windows 系统内�
 
 ```
 Hydride/
-├── rust/                            # Rust 服务源码与构建（主实现）
+├── Project/                          # Rust 服务源码与构建（主实现）
 │   ├── service_core.rs              # 主程序（双引擎调度 + 内存监控 + 清理逻辑）
 │   ├── main.rs                      # 程序入口
 │   ├── Cargo.toml                   # 项目文件（edition 2024 / release 极致优化）
-│   ├── installer.iss                # Inno Setup 安装脚本
-│   └── publish/                     # 构建产物（发布 exe 与安装包）
-├── misc/                            # 资源文件
+│   └── installer.iss                # Inno Setup 安装脚本
+├── Misc/                            # 资源文件
 │   ├── Background.bmp / .png        # 安装向导左侧背景图（源图 + 位图）
 │   ├── Rust.bmp / .png              # 安装向导右上角小图（源图 + 位图）
 │   ├── Proj.ico                     # 安装包与程序图标
 │   └── Proj.png                     # 图标源图
-├── docs/                            # 网页版文档
-│   ├── README_CN.html
-│   └── README_EN.html
-├── libs/
+├── Libs/
 │   └── LIBPCL2.dll                  # 内存清理引擎（base64 封装，运行时解码为 hsmmts.exe）
+├── Publish/                         # 构建产物（发布 exe 与安装包）
 ├── .github/                         # Issue / PR 模板
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── bug_report.md
@@ -80,15 +77,15 @@ Hydride/
 # 1. 先构建项目（如上）
 # 2. 安装 Inno Setup（https://jrsoftware.org/isdl.php）
 # 3. 编译安装包
-ISCC.exe rust\installer.iss
+ISCC.exe Project\installer.iss
 ```
 
-输出：`rust\publish\hydride-svc-win-x64-setup-v2.0.0.exe`。
+输出：`Publish\hydride-svc-win-x64-setup-v2.1.0.exe`。
 
 安装包特性：
 - 中英文双语界面，默认跟随系统语言
 - 智能版本比较：升级静默、同版本询问重装、降级警告
-- 安装 `hydride_svc64.exe`、`libs/` 与文档，写入服务 YAML 配置
+- 安装 `hydride_svc64.exe`、`Libs/`，写入服务 YAML 配置
 - 通过 Silanes 注册并启动服务，全程退出码检查（失败弹「终止 / 重试 / 忽略」）
 - 静默模式（`/S`）下自动等待旧进程退出
 - 卸载时通过 Silanes 删除服务并移除所有文件
@@ -100,10 +97,10 @@ ISCC.exe rust\installer.iss
 使用 [Releases](https://github.com/NXRKYMANE/Hydride/releases) 的安装包即可完整安装并自动注册服务。
 
 手动部署：
-1. 将 `rust/publish/` 中的 `hydride_svc64.exe` 复制到目标机器。
-2. 将 `libs/LIBPCL2.dll` 与 exe 放同一目录。
+1. 将 `Publish/` 中的 `hydride_svc64.exe` 复制到目标机器。
+2. 将 `Libs/LIBPCL2.dll` 与 exe 放同一目录。
 3. 安装 [Silanes](https://github.com/NXRKYMANE/Silanes)（自动注册 `silanes64.exe` 到 PATH）。
-4. 注册服务：`silanes64.exe --install libs\hydride_svc64.yaml`
+4. 注册服务：`silanes64.exe --install Libs\hydride_svc64.yaml`
 5. 启动服务：`silanes64.exe --start hydride_svc64`
 
 ## ⚠️ 免责声明

@@ -32,6 +32,6 @@ fn main() {
     res.set("ProductName", "Hydride System Memory Manager Service");
     res.set("FileDescription", "hydride_svc64");
     res.set("LegalCopyright", &format!("Copyright (C) {} NXRKYMANE SOFTWARE", year));
-    res.set_icon("../misc/Proj.ico");
+    res.set_icon("../Misc/Proj.ico");
     res.compile().unwrap();
 }
