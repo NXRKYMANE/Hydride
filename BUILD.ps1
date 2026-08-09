@@ -3,7 +3,28 @@
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
-$Iscc = "C:\Program Files\Inno Setup 7\ISCC.exe"
+
+# Rust MSVC 工具链：无 VS（vswhere）时使用本机 F:\DevTools 固化的 MSVC + Windows SDK（自动取最新版本）
+$vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+if (-not (Test-Path $vswhere)) {
+    $msvc = Get-ChildItem "F:\DevTools\MSVC" -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1
+    $sdkVer = Get-ChildItem "F:\DevTools\Windows11 SDK\Lib" -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1
+    $sdkBase = "F:\DevTools\Windows11 SDK"
+    if ($msvc -and $sdkVer -and (Test-Path "$($msvc.FullName)\bin\Hostx64\x64\link.exe")) {
+        # link.exe 入 PATH 供 rustc 调用，LIB/INCLUDE 指向固化 SDK
+        $env:Path = "$($msvc.FullName)\bin\Hostx64\x64;$env:Path"
+        $env:LIB = "$($msvc.FullName)\lib\x64;$sdkBase\Lib\$($sdkVer.Name)\ucrt\x64;$sdkBase\Lib\$($sdkVer.Name)\um\x64"
+        $env:INCLUDE = "$($msvc.FullName)\include;$sdkBase\Include\$($sdkVer.Name)\ucrt;$sdkBase\Include\$($sdkVer.Name)\um;$sdkBase\Include\$($sdkVer.Name)\shared"
+    }
+}
+
+# Inno Setup 6 / 7 兼容路径
+$Iscc = @(
+    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+    "C:\Program Files\Inno Setup 6\ISCC.exe",
+    "C:\Program Files\Inno Setup 7\ISCC.exe"
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $Iscc) { throw "Inno Setup not found" }
 
 # 1. 从 Cargo.toml 读取版本号
 $cargo = Get-Content "$ProjectRoot\Project\Cargo.toml"
