@@ -2,7 +2,7 @@
 ; 功能：双语（默认跟随系统语言）/ 版本比较 / Silanes 服务注册与卸载 / 不创建开始菜单快捷方式
 
 #define MyAppName "Hydride"
-#define MyAppVersion "2.1.0"
+#define MyAppVersion "2.2.0"
 #define MyAppPublisher "Copyright (C) 2026 NXRKYMANE SOFTWARE"
 #define MyAppURL "https://github.com/NXRKYMANE/Hydride"
 #define MyAppExeName "hydride_svc64.exe"
@@ -380,17 +380,17 @@ begin
   end;
 end;
 
-// ── 写入包含正确安装路径的服务 YAML 配置 ──
-procedure CreateServiceYaml;
+// ── 写入包含正确安装路径的服务 TOML 配置 ──
+procedure CreateServiceToml;
 var
-  YamlPath: String;
+  TomlPath: String;
 begin
-  YamlPath := ExpandConstant('{app}\Libs\hydride_svc64.yaml');
-  SaveStringToFile(YamlPath,
-    'service_name: hydride_svc64' + #13#10 +
-    'service_display_name: Hydride System Memory Manager Service' + #13#10 +
-    'service_description: Automatically manages system memory usage' + #13#10 +
-    'service_executable_path: ' + ExpandConstant('{app}\hydride_svc64.exe') + #13#10,
+  TomlPath := ExpandConstant('{app}\Libs\hydride_svc64.toml');
+  SaveStringToFile(TomlPath,
+    'service_name = "hydride_svc64"' + #13#10 +
+    'service_display_name = "Hydride System Memory Manager Service"' + #13#10 +
+    'service_description = "Automatically manages system memory usage"' + #13#10 +
+    'service_executable_path = ''' + ExpandConstant('{app}\hydride_svc64.exe') + '''' + #13#10,
     False);
 end;
 
@@ -425,7 +425,7 @@ begin
   end;
 end;
 
-// ── 目录选择页防护：路径过长（>220 字符）时 yaml/exe 路径会触及 MAX_PATH
+// ── 目录选择页防护：路径过长（>220 字符）时 toml/exe 路径会触及 MAX_PATH
 // 限制导致服务注册失败，提前询问，避免装到一半才报错
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
@@ -501,12 +501,12 @@ end;
 // ── 服务注册：文件复制完成后调用（ssPostInstall）──
 procedure ConfigureService;
 begin
-  // 1. 写入服务 YAML（此时 {app}\Libs 已复制就位）
-  CreateServiceYaml;
+  // 1. 写入服务 TOML（此时 {app}\Libs 已复制就位）
+  CreateServiceToml;
 
   // 2. 注册服务（日志文本与 NSIS 版一致）
   AddLog('Registering Hydride service...');
-  if not RunSilanesCommand(ExpandConstant('--install "{app}\Libs\hydride_svc64.yaml"'), CustomMessage('RegisterFail')) then
+  if not RunSilanesCommand(ExpandConstant('--install "{app}\Libs\hydride_svc64.toml"'), CustomMessage('RegisterFail')) then
     Exit;
 
   // 3. 启动服务

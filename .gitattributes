@@ -1,3 +1,3 @@
-# 安装器脚本与周边构建脚本不参与 GitHub 语言统计（仓库核心语言为 Rust）
+# Installer and peripheral build scripts are excluded from GitHub language stats (core language: Rust)
 *.ps1 linguist-vendored=true
 *.iss linguist-vendored=true

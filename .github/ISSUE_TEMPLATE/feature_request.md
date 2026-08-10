@@ -1,16 +1,16 @@
 ---
-name: 功能建议
-about: 提出一个新功能或改进建议
+name: Feature Request
+about: Suggest a new feature or improvement
 title: "[Feature] "
 labels: enhancement
 assignees: ''
 ---
 
-**需求描述**
-清晰描述你想解决的问题或新增的能力。
+**Description**
+Clearly describe the problem you want to solve or the new capability you need.
 
-**使用场景**
-在什么场景下需要这个功能？
+**Use Case**
+In what scenario is this feature needed?
 
-**实现建议（可选）**
-你期望的实现方式或配置形式。
+**Implementation Suggestion (optional)**
+How you expect it to be implemented or configured.

@@ -1,26 +1,26 @@
-# 贡献指南
+# Contributing Guide
 
-感谢你对 Hydride 的关注与贡献！
+Thank you for your interest in and contributions to Hydride!
 
-## 项目结构要点
+## Project Structure Highlights
 
-- **单实现**：Rust（edition 2024）单一实现，产物为 `hydride_svc64.exe`（入口 `Project/main.rs`，核心逻辑 `Project/service_core.rs`）。
-- **安装器**：Inno Setup 7 脚本位于 `Project/installer.iss`，由 `BUILD.ps1` 统一构建（编译 → 发布 → 打包）。
-- **版本单一来源**：`Project/Cargo.toml` 的 `version`，`BUILD.ps1` 自动同步到 `installer.iss`。
+- **Single implementation**: a single Rust (edition 2024) implementation, artifact is `hydride_svc64.exe` (entry `Project/main.rs`, core logic `Project/service_core.rs`).
+- **Installer**: the Inno Setup 7 script lives at `Project/installer.iss`, built uniformly by `BUILD.ps1` (compile → publish → package).
+- **Single source of version**: the `version` in `Project/Cargo.toml`, automatically synced by `BUILD.ps1` into `installer.iss`.
 
-## 开发流程
+## Development Workflow
 
-1. Fork 本仓库并创建功能分支
-2. 修改代码
-3. 本地验证：运行 `.\BUILD.ps1`（编译 + 打包，0 警告 0 错误）
-4. 提交并创建 Pull Request
+1. Fork this repository and create a feature branch
+2. Modify the code
+3. Verify locally: run `.\BUILD.ps1` (compile + package, 0 warnings 0 errors)
+4. Commit and open a Pull Request
 
-## 代码规范
+## Code Standards
 
-- 注释不超过两行；单行注释过长时折叠为两行
-- 每次编辑后检查：优化冗余 / 死代码，合并可合并的代码，清理未使用的 use（Rust）
-- 修改安装器时注意：保持 [CustomMessages] 双语同步（english / chinesesimp）
+- Comments span no more than two lines; fold long single-line comments into two lines
+- After every edit, check: remove redundant / dead code, merge mergeable code, clean up unused `use` imports (Rust)
+- When modifying the installer, keep [CustomMessages] bilingual in sync (english / chinesesimp)
 
-## 提交信息
+## Commit Messages
 
-建议用清晰的中文或英文描述变更内容，例如"修复安装器日志框无法滚动到底部"。
+Describe the change in clear English or Chinese, e.g. "Fix the installer log pane not scrolling to the bottom".

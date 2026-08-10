@@ -1,35 +1,35 @@
-# 安全政策
+# Security Policy
 
-## 支持范围
+## Supported Versions
 
-以下版本接受安全更新与漏洞报告：
+The following versions receive security updates and vulnerability reports:
 
-- 最新的正式发布版本（v1.2.x）
+- The latest stable release
 
-## 报告漏洞
+## Reporting a Vulnerability
 
-请**不要**在公开渠道（Issue / 讨论 / PR）披露安全漏洞。请通过以下方式私下报告：
+Please **do not** disclose security vulnerabilities through public channels (Issues / Discussions / PRs). Report them privately instead:
 
-- GitHub Security Advisory：仓库页面 → **Security → Report a vulnerability**
-- 维护者邮箱（NXRKYMANE）
+- GitHub Security Advisory: repository page → **Security → Report a vulnerability**
+- Maintainer email (NXRKYMANE)
 
-请提供：
+Please provide:
 
-- 受影响版本
-- 漏洞描述与影响
-- 复现步骤（如可能）
-- 建议的修复方案（可选）
+- Affected version
+- Vulnerability description and impact
+- Reproduction steps (if possible)
+- Suggested fix (optional)
 
-## 处理流程
+## Handling Process
 
-- 收到报告后 72 小时内确认
-- 确认后尽快修复并发布补丁版本
-- 修复发布前不会公开漏洞细节
+- Acknowledgment within 72 hours of receiving the report
+- Fix as soon as possible after confirmation and release a patch version
+- Vulnerability details are not disclosed publicly until the fix is released
 
-## 安全设计
+## Security Design
 
-- 服务由 Silanes 注册并以 LocalSystem 权限运行，仅执行内存清理，无网络监听
-- 单实例互斥：`Global\Hydride_HSMM_SingleInstance` 防止多实例争用同一临时目录
-- 退出时精准终止本实例创建的子进程（记录 PID 并校验进程名），避免误杀系统中同名进程
-- 清理引擎 `hsmmts.exe` 以隐藏窗口方式运行，工作目录为 `%WINDIR%\Temp\HSMM`，退出时整目录删除
-- Rust 单文件发布（约 270 KB），无运行时依赖，降低供应链面
+- The service is registered by Silanes and runs with LocalSystem privileges, performing only memory cleanup with no network listening
+- Single-instance mutex: `Global\Hydride_HSMM_SingleInstance` prevents multiple instances contending for the same temp directory
+- On exit, precisely terminates child processes created by this instance (PID recorded and process name verified) to avoid killing same-name processes on the system
+- The cleanup engine `hsmmts.exe` runs with a hidden window, working directory `%WINDIR%\Temp\HSMM`, and the whole directory is deleted on exit
+- Rust single-file release (~270 KB) with no runtime dependencies, reducing the supply-chain surface

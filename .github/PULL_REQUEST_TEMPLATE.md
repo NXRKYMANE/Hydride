@@ -1,19 +1,19 @@
-## 变更说明
+## Description
 
-简述本次变更的内容与动机。
+Briefly describe the content and motivation of this change.
 
-## 变更类型
+## Type of Change
 
-- [ ] 修复 Bug
-- [ ] 新功能
-- [ ] 文档
-- [ ] 重构 / 优化
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Documentation
+- [ ] Refactor / optimization
 
-## 验证
+## Verification
 
-- [ ] `.\BUILD.ps1` 构建通过（0 警告 0 错误）
-- [ ] 安装包生成成功
+- [ ] `.\BUILD.ps1` build passes (0 warnings 0 errors)
+- [ ] Installer generated successfully
 
-## 关联 Issue
+## Related Issue
 
 Closes #
