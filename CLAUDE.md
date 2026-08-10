@@ -24,3 +24,4 @@
 - 2026-08-10：服务配置由 YAML 迁移为 TOML（installer.iss 生成 hydride_svc64.toml，路径用单引号字面字符串）
 - 2026-08-10：BUILD.ps1 固化工具链（无 VS 时自动配置 F:\DevTools\MSVC + Windows11 SDK，并自动探测 Inno Setup 6/7）
 - 2026-08-10：版本升至 2.2.0；git 提交历史、GitHub Release 页面、GitHub 平台文件（CONTRIBUTING/SECURITY/.github 等）全部英文化；SECURITY.md 去除版本号
+- 2026-08-10：发布 v2.2.0（提交 5ded9ec + tag + Release，资产为安装包，说明英文，格式与往期一致）
