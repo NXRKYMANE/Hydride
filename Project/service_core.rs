@@ -106,8 +106,8 @@ pub fn main_entry() {
     // 主服务循环：双引擎按内存使用率分档，同周期内交错执行
     while !STOP.load(Ordering::SeqCst) {
         let mem_pct = get_memory_percent();
-        let pcl_runs = ((mem_pct / 25.0) as i32 + 1).clamp(1, 4);      // PCL2：每 25% 一档，1~4 次/分
-        let standby_runs = ((mem_pct / 50.0) as i32 + 1).clamp(1, 2);  // Standby：每 50% 一档，1~2 次/分
+        let pcl_runs = ((mem_pct / 25.0) as i32 + 1).clamp(1, 5);      // PCL2：每 25% 一档，1~5 次/分
+        let standby_runs = 1;                                          // Standby：固定 1 次/分
         let pcl_interval = CYCLE_MS / pcl_runs as u64;
         let standby_interval = CYCLE_MS / standby_runs as u64;
 
@@ -122,7 +122,8 @@ pub fn main_entry() {
         let mut pcl_done = 0;
         let mut standby_done = 0;
 
-        while (pcl_done < pcl_runs || standby_done < standby_runs) && !STOP.load(Ordering::SeqCst) {
+        // 周期内循环：交错执行直到本周期（60s）结束，保证周期长度恒定
+        while !STOP.load(Ordering::SeqCst) {
             let elapsed = start.elapsed().as_millis() as u64;
 
             if pcl_done < pcl_runs && elapsed >= next_pcl {
@@ -137,10 +138,15 @@ pub fn main_entry() {
                 next_standby += standby_interval;
             }
 
-            // 等待到两引擎中更早的下一次触发点（每次最多 1 秒）
+            // 已到周期末尾：进入下一周期
+            if elapsed >= CYCLE_MS {
+                break;
+            }
+
+            // 等待两引擎中更早的下一次触发点（已完成的一侧等到周期结束；每次最多 1 秒）
             let wait_until = std::cmp::min(
-                if pcl_done < pcl_runs { next_pcl } else { u64::MAX },
-                if standby_done < standby_runs { next_standby } else { u64::MAX },
+                if pcl_done < pcl_runs { next_pcl } else { CYCLE_MS },
+                if standby_done < standby_runs { next_standby } else { CYCLE_MS },
             );
             let wait_ms = wait_until.saturating_sub(elapsed).min(1000);
             std::thread::sleep(Duration::from_millis(wait_ms));

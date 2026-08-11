@@ -2,7 +2,7 @@
 ; 功能：双语（默认跟随系统语言）/ 版本比较 / Silanes 服务注册与卸载 / 不创建开始菜单快捷方式
 
 #define MyAppName "Hydride"
-#define MyAppVersion "2.2.0"
+#define MyAppVersion "2.3.0"
 #define MyAppPublisher "Copyright (C) 2026 NXRKYMANE SOFTWARE"
 #define MyAppURL "https://github.com/NXRKYMANE/Hydride"
 #define MyAppExeName "hydride_svc64.exe"

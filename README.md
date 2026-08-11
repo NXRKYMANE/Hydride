@@ -10,8 +10,8 @@ Built with high-performance **Rust**, compiled to a single native binary (~270 K
 
 1. On startup, decodes `Libs/LIBPCL2.dll` (base64) into `hsmmts.exe` under `%WINDIR%\Temp\HSMM`.
 2. Runs a 60-second cycle with two engines, interleaved by memory-usage tiers:
-   - **PCL2 engine** (flush working sets): every 25% tier, 1–4 runs/min, logged in `Used` format
-   - **Standby engine** (built-in, flush cache): every 50% tier, 1–2 runs/min, logged in `Standby` format
+   - **PCL2 engine** (flush working sets): every 25% tier, 1–5 runs/min, logged in `Used` format
+   - **Standby engine** (built-in, flush cache): fixed at 1 run/min, logged in `Standby` format
 3. Each PCL2 cleanup runs `hsmmts.exe --memory` once, comparing memory before and after, spread evenly across the cycle.
 4. On exit, forcefully terminates all `hsmmts` processes and deletes `%WINDIR%\Temp\HSMM`.
 
@@ -81,7 +81,7 @@ Build the installer package:
 ISCC.exe Project\installer.iss
 ```
 
-Output: `Publish\hydride-svc-win-x64-setup-v2.2.0.exe`.
+Output: `Publish\hydride-svc-win-x64-setup-v2.3.0.exe`.
 
 Installer features:
 - Bilingual UI (English / Simplified Chinese), defaulting to system language

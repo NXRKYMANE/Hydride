@@ -10,8 +10,8 @@ Hydride System Memory Manager Service — 轻量高性能的 Windows 系统内�
 
 1. 启动时将 `Libs/LIBPCL2.dll`（base64）解码为 `hsmmts.exe`，放到 `%WINDIR%\Temp\HSMM`。
 2. 每 60 秒一个周期，双引擎按内存使用率分档交错执行：
-   - **PCL2 引擎**（清工作集）：每 25% 一档，1–4 次/分，日志按 `Used` 格式
-   - **Standby 引擎**（内置，清缓存）：每 50% 一档，1–2 次/分，日志按 `Standby` 格式
+   - **PCL2 引擎**（清工作集）：每 25% 一档，1–5 次/分，日志按 `Used` 格式
+   - **Standby 引擎**（内置，清缓存）：固定 1 次/分，日志按 `Standby` 格式
 3. 每次 PCL2 清理运行一次 `hsmmts.exe --memory`，对比清理前后内存，任务均匀分布在整个周期内。
 4. 退出时强制终止所有 `hsmmts` 进程并删除 `%WINDIR%\Temp\HSMM`。
 
@@ -81,7 +81,7 @@ Hydride/
 ISCC.exe Project\installer.iss
 ```
 
-输出：`Publish\hydride-svc-win-x64-setup-v2.2.0.exe`。
+输出：`Publish\hydride-svc-win-x64-setup-v2.3.0.exe`。
 
 安装包特性：
 - 中英文双语界面，默认跟随系统语言
