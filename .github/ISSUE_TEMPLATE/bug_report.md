@@ -27,5 +27,5 @@ What actually happened.
 
 **Logs**
 Relevant log locations:
-- Service log: `C:\ProgramData\Silanes\svcs\hydride_svc64\logs\yyyy-MM-dd.log`
+- Service log: `C:\ProgramData\Osmium\svcs\hydride_svc64\logs\yyyy-MM-dd.log`
 - Installer: error messages shown in the installation log pane

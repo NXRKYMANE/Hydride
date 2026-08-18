@@ -42,6 +42,13 @@ $publishDir = "$ProjectRoot\Publish"
 New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
 Copy-Item "$ProjectRoot\Project\target\release\hydride_svc64.exe" "$publishDir\hydride_svc64.exe" -Force
 
+# 3.5 UPX 极限压缩（LZMA + 极限暴力压缩，体积最极限）
+$upxPath = "F:\DevTools\UPX\upx.exe"
+if (-not (Test-Path $upxPath)) { throw "UPX not found at $upxPath" }
+Write-Host "Compressing with UPX (--ultra-brute --lzma)..." -ForegroundColor Yellow
+& $upxPath --ultra-brute --lzma "$publishDir\hydride_svc64.exe"
+if ($LASTEXITCODE -ne 0) { throw "UPX compression failed" }
+
 # 4. 更新 Project\installer.iss 中的版本号
 Write-Host "Updating installer.iss..." -ForegroundColor Yellow
 $iss = Get-Content "$ProjectRoot\Project\installer.iss" -Raw -Encoding UTF8

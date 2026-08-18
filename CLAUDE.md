@@ -14,12 +14,16 @@
 
 ## 项目结构
 - Project/：Rust 服务源码（main.rs / service_core.rs / build.rs / installer.iss / Cargo.toml）
-- Libs/：LIBPCL2.dll（base64 文本封装，运行时解码为 hsmmts.exe）
+- Libs/：LIBPCL2.dll（base64 文本封装，运行时解码为 wrcs.exe）
 - Misc/：图标与安装向导图片
 - Publish/：构建产物（已被 gitignore）
 - README.md（英文）+ README_CN.md（中文），首行互为语言切换链接
 
 ## 重要变动记录
+- 2026-08-18：清理引擎更名——临时工作目录 HSMM → WRCS（`%WINDIR%\Temp\WRCS`）、hsmmts.exe → wrcs.exe（函数 decode_hsmmts/ensure_hsmmts/run_hsmmts → decode_wrcs/ensure_wrcs/run_wrcs、单实例互斥 Global\Hydride_WRCS_SingleInstance）；README 双语 + SECURITY.md + CLAUDE.md 同步
+- 2026-08-18：体积极限优化——Cargo.toml opt-level 改 "z"（体积优先），BUILD.ps1 新增 UPX `--ultra-brute --lzma` 极限压缩步骤（Publish\hydride_svc64.exe 就地压缩后进安装包，UPX 路径 F:\DevTools\UPX\upx.exe，缺失即报错）；实测 295,936 → 152,064 B（51.4%）；README 双语标题去 🧠 emoji、体积描述同步 ~150 KB；SECURITY.md 同步
+- 2026-08-18：版本升至 2.4.0；安装流程去 --delete——PrepareToInstall 停止旧服务改 `--stop hydride_svc64`（--delete 会连同 svcs 日志删除；配置更新由 --install 完成），卸载流程保留 --delete；ISCC 编译通过
+- 2026-08-17：前置框架迁移适配 Silanes → Osmium（v26.7.0 品牌重命名）——installer.iss 注册表键 `App Paths\os.exe`、函数 SilanesExec/RunSilanesCommand → OsmiumExec/RunOsmiumCommand、消息 SilanesNotFound → OsmiumNotFound（URL 指 NXRKYMANE/Osmium）；README 双语 + SECURITY.md + bug_report.md 日志路径同步（`ProgramData\Osmium\svcs`）；服务注册命令不变（--install/--start/--delete）；ISCC 编译验证通过
 - 2026-08-10：目录重构 rust→Project、libs→Libs、misc→Misc、publish→根目录 Publish；Docs 文件夹已删除
 - 2026-08-10：服务配置由 YAML 迁移为 TOML（installer.iss 生成 hydride_svc64.toml，路径用单引号字面字符串）
 - 2026-08-10：BUILD.ps1 固化工具链（无 VS 时自动配置 F:\DevTools\MSVC + Windows11 SDK，并自动探测 Inno Setup 6/7）

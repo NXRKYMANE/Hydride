@@ -1,8 +1,8 @@
 ﻿; Hydride Inno Setup 安装脚本
-; 功能：双语（默认跟随系统语言）/ 版本比较 / Silanes 服务注册与卸载 / 不创建开始菜单快捷方式
+; 功能：双语（默认跟随系统语言）/ 版本比较 / Osmium 服务注册与卸载 / 不创建开始菜单快捷方式
 
 #define MyAppName "Hydride"
-#define MyAppVersion "2.3.0"
+#define MyAppVersion "2.5.0"
 #define MyAppPublisher "Copyright (C) 2026 NXRKYMANE SOFTWARE"
 #define MyAppURL "https://github.com/NXRKYMANE/Hydride"
 #define MyAppExeName "hydride_svc64.exe"
@@ -30,7 +30,7 @@ SolidCompression=yes
 WizardStyle=classic
 DisableWelcomePage=no
 WizardImageFile=..\Misc\Background.bmp
-WizardSmallImageFile=..\Misc\Rust.bmp
+WizardSmallImageFile=..\Misc\Proj.bmp
 CloseApplications=yes
 DisableDirPage=no
 DirExistsWarning=no
@@ -46,8 +46,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
 [CustomMessages]
-english.SilanesNotFound=Silanes is required but not found. Please install Silanes from https://github.com/NXRKYMANE/Silanes before installing Hydride.
-chinesesimp.SilanesNotFound=未找到 Silanes。%n请先安装 Silanes: https://github.com/NXRKYMANE/Silanes 再安装 Hydride。
+english.OsmiumNotFound=Osmium is required but not found. Please install Osmium from https://github.com/NXRKYMANE/Osmium before installing Hydride.
+chinesesimp.OsmiumNotFound=未找到 Osmium。%n请先安装 Osmium: https://github.com/NXRKYMANE/Osmium 再安装 Hydride。
 english.SameVersionPrompt=An identical version (v%1) is already installed. Reinstall?
 chinesesimp.SameVersionPrompt=已安装相同版本的 Hydride (v%1)。是否重新安装？
 english.DowngradePrompt=A newer version (v%1) is already installed. Downgrade to v{#MyAppVersion}?
@@ -65,7 +65,6 @@ chinesesimp.PathTooLong=所选安装文件夹路径过长（%1 个字符），�
 
 [Files]
 Source: "..\Publish\hydride_svc64.exe"; DestDir: "{app}"; Flags: ignoreversion; AfterInstall: LogFile('{app}\hydride_svc64.exe')
-Source: "..\Misc\Proj.ico"; DestDir: "{app}"; DestName: "icon.ico"; Flags: ignoreversion; AfterInstall: LogFile('{app}\icon.ico')
 Source: "..\Libs\*"; DestDir: "{app}\Libs"; Flags: recursesubdirs createallsubdirs ignoreversion; AfterInstall: LogFile('{app}\Libs\')
 
 [Registry]
@@ -77,7 +76,7 @@ const
   UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{8F3C2E1A-9D4B-4C6E-B7F2-5A1E8D0C3B64}_is1';
   // NSIS 旧版安装的卸载键（兼容从 NSIS 安装包升级）
   NSISUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\Hydride';
-  SilanesKey = 'Software\Microsoft\Windows\CurrentVersion\App Paths\silanes64.exe';
+  OsmiumKey = 'Software\Microsoft\Windows\CurrentVersion\App Paths\os.exe';
 
 var
   // 安装页与准备页的滚动日志面板（模拟 NSIS 的 DetailPrint）
@@ -135,8 +134,9 @@ begin
   LogMemo.BorderStyle := bsSingle;
   LogMemo.WantTabs := True;
   LogMemo.Color := clWhite;
-  LogMemo.Font.Name := 'Cascadia Code';
+  LogMemo.Font.Name := 'Microsoft YaHei';
   LogMemo.Font.Size := 9;
+  LogMemo.Font.Style := [];
 
   // 以进度条与状态文本中较低者为锚点，确保日志框始终在它们下方
   if WizardForm.StatusLabel.Top > WizardForm.ProgressGauge.Top then
@@ -171,8 +171,9 @@ begin
   PrepLogMemo.BorderStyle := bsSingle;
   PrepLogMemo.WantTabs := True;
   PrepLogMemo.Color := clWhite;
-  PrepLogMemo.Font.Name := 'Cascadia Code';
+  PrepLogMemo.Font.Name := 'Microsoft YaHei';
   PrepLogMemo.Font.Size := 9;
+  PrepLogMemo.Font.Style := [];
   PrepLogMemo.SetBounds(LogMemo.Left, LogMemo.Top, LogMemo.Width, LogMemo.Height);
 
   // 准备就绪页的目录摘要列表：同样隐藏滚动条并改用扁平边框
@@ -324,25 +325,25 @@ begin
   Result := Result + #13#10 + 'Command: ' + Args;
 end;
 
-// ── 静默执行 silanes 命令（不弹窗），失败时返回错误文本；输出同时追加到日志框 ──
-function SilanesExec(const Args: String; var ErrText: String): Boolean;
+// ── 静默执行 os 命令（不弹窗），失败时返回错误文本；输出同时追加到日志框 ──
+function OsmiumExec(const Args: String; var ErrText: String): Boolean;
 var
-  SilanesPath: String;
+  OsmiumPath: String;
   Output: TExecOutput;
   ResultCode: Integer;
   I: Integer;
 begin
   Result := False;
   ErrText := '';
-  if RegQueryStringValue(HKLM, SilanesKey, '', SilanesPath) then
+  if RegQueryStringValue(HKLM, OsmiumKey, '', OsmiumPath) then
   begin
     // 注意：ExecAndCaptureOutput 的 Filename 不能带引号，否则进程启动失败（error 87）
-    if ExecAndCaptureOutput(SilanesPath, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode, Output) and (ResultCode = 0) then
+    if ExecAndCaptureOutput(OsmiumPath, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode, Output) and (ResultCode = 0) then
       Result := True
     else
       ErrText := BuildErrorText(Args, ResultCode, Output);
 
-    // 将 silanes 的实际输出逐行显示到 detail 日志框
+    // 将 os 的实际输出逐行显示到 detail 日志框
     for I := 0 to GetArrayLength(Output.StdErr) - 1 do
       if Trim(Output.StdErr[I]) <> '' then
         AddLog(Output.StdErr[I]);
@@ -352,15 +353,15 @@ begin
   end;
 end;
 
-// ── 通过 Silanes 执行命令，失败弹「终止 / 重试 / 忽略」并显示完整错误流 ──
-function RunSilanesCommand(const Args, FailMsg: String): Boolean;
+// ── 通过 Osmium 执行命令，失败弹「终止 / 重试 / 忽略」并显示完整错误流 ──
+function RunOsmiumCommand(const Args, FailMsg: String): Boolean;
 var
   ErrText: String;
 begin
   Result := False;
   while True do
   begin
-    if SilanesExec(Args, ErrText) then
+    if OsmiumExec(Args, ErrText) then
     begin
       Result := True;
       Exit;
@@ -430,7 +431,7 @@ end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   AppLen: Integer;
-  SilanesPath: String;
+  OsmiumPath: String;
 begin
   Result := True;
   if CurPageID = wpSelectDir then
@@ -441,11 +442,11 @@ begin
   end
   else if CurPageID = wpReady then
   begin
-    // 前置检查：Silanes 未安装时在此直接报错并停留，
+    // 前置检查：Osmium 未安装时在此直接报错并停留，
     // 避免进入准备页后日志框遮挡内置描述文本导致漏字
-    if not RegQueryStringValue(HKLM, SilanesKey, '', SilanesPath) then
+    if not RegQueryStringValue(HKLM, OsmiumKey, '', OsmiumPath) then
     begin
-      MsgBox(CustomMessage('SilanesNotFound'), mbError, MB_OK);
+      MsgBox(CustomMessage('OsmiumNotFound'), mbError, MB_OK);
       Result := False;
     end;
   end;
@@ -456,7 +457,7 @@ end;
 // 避免 [Files] 覆盖 {app}\hydride_svc64.exe 时文件被锁定（拒绝访问）
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  SilanesPath: String;
+  OsmiumPath: String;
   DummyErr: String;
   Output: TExecOutput;
   ResultCode: Integer;
@@ -464,16 +465,17 @@ var
 begin
   Result := '';
 
-  // 1. 前置检查：Silanes
-  if not RegQueryStringValue(HKLM, SilanesKey, '', SilanesPath) then
+  // 1. 前置检查：Osmium
+  if not RegQueryStringValue(HKLM, OsmiumKey, '', OsmiumPath) then
   begin
-    Result := CustomMessage('SilanesNotFound');
+    Result := CustomMessage('OsmiumNotFound');
     Exit;
   end;
 
-  // 2. 删除旧服务（停止并移除服务及其进程）
-  AddLog('Cleaning up old service...');
-  SilanesExec('--delete hydride_svc64', DummyErr);
+  // 2. 停止旧服务（不删除服务与日志；配置更新由后续 --install 完成，
+  //    直接用 --delete 会连 svcs 目录中的日志一起删除）
+  AddLog('Stopping old service...');
+  OsmiumExec('--stop hydride_svc64', DummyErr);
 
   // 3. 强制终止残余的 hydride_svc64.exe 进程（含手动运行的实例）
   AddLog('Terminating leftover processes...');
@@ -506,12 +508,16 @@ begin
 
   // 2. 注册服务（日志文本与 NSIS 版一致）
   AddLog('Registering Hydride service...');
-  if not RunSilanesCommand(ExpandConstant('--install "{app}\Libs\hydride_svc64.toml"'), CustomMessage('RegisterFail')) then
+  if not RunOsmiumCommand(ExpandConstant('--install "{app}\Libs\hydride_svc64.toml"'), CustomMessage('RegisterFail')) then
     Exit;
 
-  // 3. 启动服务
+  // 3. 注册成功后删除本地 TOML（配置已部署为 ProgramData\Osmium\svcs 下的 .osiml）
+  DeleteFile(ExpandConstant('{app}\Libs\hydride_svc64.toml'));
+  AddLog('Removed local config: {app}\Libs\hydride_svc64.toml');
+
+  // 4. 启动服务
   AddLog('Starting Hydride service...');
-  if not RunSilanesCommand('--start hydride_svc64', CustomMessage('StartFail')) then
+  if not RunOsmiumCommand('--start hydride_svc64', CustomMessage('StartFail')) then
     Exit;
 end;
 
@@ -525,23 +531,23 @@ begin
     AddLog('Installation complete.');
 end;
 
-// ── 卸载：Silanes 检查 + 删除服务 ──
+// ── 卸载：Osmium 检查 + 删除服务 ──
 // Inno 7 无 AbortInstall，通过 InitializeUninstall 返回 False 中止卸载
 function InitializeUninstall: Boolean;
 var
-  SilanesPath: String;
+  OsmiumPath: String;
 begin
   Result := True;
 
-  // 1. 前置检查：Silanes
-  if not RegQueryStringValue(HKLM, SilanesKey, '', SilanesPath) then
+  // 1. 前置检查：Osmium
+  if not RegQueryStringValue(HKLM, OsmiumKey, '', OsmiumPath) then
   begin
-    MsgBox(CustomMessage('SilanesNotFound'), mbError, MB_OK);
+    MsgBox(CustomMessage('OsmiumNotFound'), mbError, MB_OK);
     Result := False;
     Exit;
   end;
 
   // 2. 删除服务：失败弹「终止 / 重试 / 忽略」
-  if not RunSilanesCommand('--delete hydride_svc64', CustomMessage('DeleteFail')) then
+  if not RunOsmiumCommand('--delete hydride_svc64', CustomMessage('DeleteFail')) then
     Result := False;
 end;

@@ -29,7 +29,7 @@ fn main() {
     res.set("FileVersion", &file_version);
     res.set("ProductVersion", version);
     res.set("CompanyName", "NXRKYMANE SOFTWARE");
-    res.set("ProductName", "Hydride System Memory Manager Service");
+    res.set("ProductName", "Hydride");
     res.set("FileDescription", "hydride_svc64");
     res.set("LegalCopyright", &format!("Copyright (C) {} NXRKYMANE SOFTWARE", year));
     res.set_icon("../Misc/Proj.ico");

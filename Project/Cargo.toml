@@ -1,6 +1,6 @@
 [package]
 name = "hydride"
-version = "2.3.0"
+version = "2.5.0"
 edition = "2024"
 
 [[bin]]
@@ -16,7 +16,7 @@ winresource = "0.1.31"
 chrono = "0.4"
 
 [profile.release]
-opt-level = 3
+opt-level = "z"
 strip = true
 lto = true
 codegen-units = 1

@@ -73,11 +73,11 @@ pub fn main_entry() {
 
     enable_standby_privilege();
 
-    // 解码 LIBPCL2.dll 得到 hsmmts.exe
+    // 解码 LIBPCL2.dll 得到 wrcs.exe
     let exe_dir = std::env::var("WINDIR")
         .unwrap_or_else(|_| "C:\\Windows".to_string());
-    let exe_dir = PathBuf::from(exe_dir).join("Temp").join("HSMM");
-    let exe_path = exe_dir.join("hsmmts.exe");
+    let exe_dir = PathBuf::from(exe_dir).join("Temp").join("WRCS");
+    let exe_path = exe_dir.join("wrcs.exe");
 
     fs::create_dir_all(&exe_dir).ok();
 
@@ -93,11 +93,11 @@ pub fn main_entry() {
         return;
     }
 
-    if let Err(e) = decode_hsmmts(&dll_path, &exe_path) {
-        log(&format!("ERROR: failed to decode hsmmts.exe: {e}"));
+    if let Err(e) = decode_wrcs(&dll_path, &exe_path) {
+        log(&format!("ERROR: failed to decode wrcs.exe: {e}"));
         return;
     }
-    log(&format!("hsmmts.exe written: {}", exe_path.display()));
+    log(&format!("wrcs.exe written: {}", exe_path.display()));
     log("Hydride System Memory Manager Service started (Press Ctrl+C to exit)");
 
     // Ctrl+C 置位停止标志，主循环据此退出并执行清理
@@ -182,7 +182,7 @@ fn log_cont(msg: &str) {
 
 /// 单实例互斥：作为服务应全局唯一，避免多个实例争用同一临时目录
 fn acquire_single_instance() -> bool {
-    let name: Vec<u16> = "Global\\Hydride_HSMM_SingleInstance"
+    let name: Vec<u16> = "Global\\Hydride_WRCS_SingleInstance"
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect();
@@ -205,8 +205,8 @@ fn enable_standby_privilege() {
     }
 }
 
-/// 解码 LIBPCL2.dll（base64）为 hsmmts.exe
-fn decode_hsmmts(dll_path: &Path, exe_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+/// 解码 LIBPCL2.dll（base64）为 wrcs.exe
+fn decode_wrcs(dll_path: &Path, exe_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let content = fs::read_to_string(dll_path)?;
     let bytes = base64::engine::general_purpose::STANDARD.decode(content.trim())?;
     fs::write(exe_path, bytes)?;
@@ -290,20 +290,20 @@ fn clear_standby_list() {
 
 // ==================== PCL2 引擎 ====================
 
-/// 确保 hsmmts.exe 可用：被外部清理工具删除时从 LIBPCL2.dll 重新解码还原
-fn ensure_hsmmts(exe_path: &Path, dll_path: &Path) {
+/// 确保 wrcs.exe 可用：被外部清理工具删除时从 LIBPCL2.dll 重新解码还原
+fn ensure_wrcs(exe_path: &Path, dll_path: &Path) {
     if exe_path.exists() {
         return;
     }
-    if let Err(e) = decode_hsmmts(dll_path, exe_path) {
-        log(&format!("Failed to restore hsmmts.exe: {e}"));
+    if let Err(e) = decode_wrcs(dll_path, exe_path) {
+        log(&format!("Failed to restore wrcs.exe: {e}"));
         return;
     }
-    log(&format!("hsmmts.exe missing, restored: {}", exe_path.display()));
+    log(&format!("wrcs.exe missing, restored: {}", exe_path.display()));
 }
 
-/// 启动 hsmmts.exe --memory 并等待其结束，超时（15 秒）则强制终止整棵进程树
-fn run_hsmmts(exe_path: &Path) {
+/// 启动 wrcs.exe --memory 并等待其结束，超时（15 秒）则强制终止整棵进程树
+fn run_wrcs(exe_path: &Path) {
     match Command::new(exe_path).arg("--memory").spawn() {
         Ok(mut child) => {
             let pid = child.id();
@@ -319,12 +319,12 @@ fn run_hsmmts(exe_path: &Path) {
                     }
                     Ok(None) if Instant::now() >= deadline => {
                         kill_tree(pid);
-                        log(&format!("  hsmmts PID {pid} timed out, killed"));
+                        log(&format!("  wrcs PID {pid} timed out, killed"));
                         break;
                     }
                     Ok(None) => std::thread::sleep(Duration::from_millis(100)),
                     Err(e) => {
-                        log(&format!("Failed to wait hsmmts PID {pid}: {e}"));
+                        log(&format!("Failed to wait wrcs PID {pid}: {e}"));
                         break;
                     }
                 }
@@ -343,13 +343,13 @@ fn kill_tree(pid: u32) {
         .status();
 }
 
-/// 执行一次 PCL2 内存清理：运行 hsmmts.exe --memory，按 Used 格式输出日志
+/// 执行一次 PCL2 内存清理：运行 wrcs.exe --memory，按 Used 格式输出日志
 fn run_cleanup_once(exe_path: &Path, dll_path: &Path, exe_dir: &Path) {
-    ensure_hsmmts(exe_path, dll_path);
+    ensure_wrcs(exe_path, dll_path);
 
     let before = get_used_memory_mb();
 
-    run_hsmmts(exe_path);
+    run_wrcs(exe_path);
     fs::remove_dir_all(exe_dir.join("PCL")).ok();
 
     let after = get_used_memory_mb();
