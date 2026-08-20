@@ -1,3 +1,4 @@
-# Installer and peripheral build scripts are excluded from GitHub language stats (core language: Rust)
+# 语言统计排除：PowerShell / Inno Setup 脚本与 Markdown 文档不参与仓库语言统计（核心语言：Rust）
 *.ps1 linguist-vendored=true
 *.iss linguist-vendored=true
+*.md linguist-vendored=true
