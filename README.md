@@ -4,26 +4,39 @@
   <img src="https://img.shields.io/github/followers/NXRKYMANE?style=social" />
   <img src="https://img.shields.io/github/forks/NXRKYMANE/Hydride" />
   <img src="https://img.shields.io/github/stars/NXRKYMANE/Hydride" />
-  <img src="https://img.shields.io/badge/-Rust-000000?style=flat&logo=rust&logoColor=white" />
-  <img src="https://img.shields.io/badge/Douyin-Ozones-000000?style=flat&logo=tiktok&logoColor=white" />
-  <img src="https://img.shields.io/badge/QQ-946777609-12B7F5?style=flat&logo=tencentqq&logoColor=white" />
-  <img src="https://komarev.com/ghpvc/?username=NXRKYMANE&repo=Hydride&label=Views&color=00BFFF&style=flat" />
+  <img src="https://img.shields.io/badge/-Rust-FFFFFF?style=flat&logo=rust&logoColor=black" />
+  <img src="https://img.shields.io/badge/Gitee-NXRKYMANE-FFFFFF?style=flat" />
+  <img src="https://img.shields.io/badge/AtomGit-NXRKYMANEX-FFFFFF?style=flat" />
+  <img src="https://img.shields.io/badge/Douyin-Ozones-FFFFFF?style=flat&logo=tiktok&logoColor=white" />
+  <img src="https://vbr.nathanchung.dev/badge?page_id=NXRKYMANE.Hydride&color=FFFFFF&leftColor=555555&label=Views" />
 </p>
 
-A lightweight high-performance physical memory cleaner service, built on Standby and PCL2. [中文文档](README_CN.md)
+A lightweight high-performance physical memory cleaner service, built entirely on native Win32 APIs. [中文文档](README_CN.md)
 
-Built in high-performance **Rust** as a single native binary (~150 KB, UPX-packed) — no runtime required on the target machine.
+Built in high-performance **Rust** as a single native binary (~150 KB, UPX-packed) — no runtime or external engine required on the target machine.
 
-> This project is built as a wrapper around the old version of **PCL2** (Plain Craft Launcher 2, by **龙腾猫跃**), combining its core memory-cleanup engine with system Standby-cache cleanup, repackaged into a long-running service with dual-engine dynamic scheduling and automatic cleanup.
+> This project performs memory cleanup natively in-process: it enumerates system processes with the Toolhelp32 API and flushes their working sets via `SetProcessWorkingSetSize(-1, -1)` (EmptyWorkingSet), then purges the system Standby cache via `NtSetSystemInformation` — all in one self-contained binary.
 
 ## How It Works
 
-1. On startup, decodes `Libs/LIBPCL2.dll` (base64) into `wrcs.exe` under `%WINDIR%\Temp\WRCS`.
-2. Runs a 60-second cycle with two engines, interleaved by memory-usage tiers:
-   - **PCL2 engine** (flush working sets): every 25% tier, 1–5 runs/min, logged in `Used` format
-   - **Standby engine** (built-in, flush cache): fixed at 1 run/min, logged in `Standby` format
-3. Each PCL2 cleanup runs `wrcs.exe --memory` once, comparing memory before and after, spread evenly across the cycle.
-4. On exit, forcefully terminates all `wrcs` processes and deletes `%WINDIR%\Temp\WRCS`.
+1. Runs a 60-second cycle with two engines, interleaved by memory-usage tiers:
+   - **WorkingSet engine** (flush working sets of all processes): every 25% tier, 1–5 runs/min, logged in `Used` format
+   - **Standby engine** (purge cache): fixed at 1 run/min, logged in `Standby` format
+2. **CPU-aware gating:** the WorkingSet frequency is reduced when system CPU load is high (≥30% −1 tier, ≥60% −2 tiers) and paused entirely above 85%, so older machines never suffer cleanup-induced load spikes.
+3. Each WorkingSet cleanup enumerates every process once and empties its working set (temporarily paging out inactive memory), comparing memory before and after, spread evenly across the cycle.
+3. The Standby engine purges the system Standby list with elevated `SeProfileSingleProcessPrivilege`.
+4. Single-instance mutex prevents conflicting concurrent cleanups.
+
+## Efficiency Mode (EcoQoS)
+
+Both the service process and the Osmium host run in Task Manager "efficiency mode" (ProcessPowerThrottling), switching on/off automatically by CPU load:
+
+| Component | Setting | Behavior |
+| --- | --- | --- |
+| Service (`hydride_svc64.exe`) | `eco_qos = "auto"` | Enters efficiency mode when idle (CPU < 10%), exits when busy (> 30%) |
+| Host (`os.exe`) | `host_eco_qos = "auto"` | Enters when idle (CPU < 5%), exits when the host or the service gets busy (> 20%) |
+
+Tuning thresholds: edit the deployed config at `ProgramData\Osmium\svcs\hydride_svc64.osiml` (fields `eco_qos_idle_cpu_pct` / `eco_qos_busy_cpu_pct` / `host_eco_qos_*`), then `os.exe --refresh hydride_svc64`.
 
 ## Project Structure
 
@@ -39,14 +52,8 @@ Hydride/
 │   ├── Proj.bmp                     # Wizard small top-right image (from Proj.png)
 │   ├── Proj.ico                     # Installer and program icon
 │   └── Proj.png                     # Icon source image
-├── Libs/
-│   └── LIBPCL2.dll                  # Memory cleanup engine (base64-encoded, decoded to wrcs.exe at runtime)
 ├── Publish/                         # Build output (published exe and installer)
-├── .github/                         # Issue / PR templates
-│   ├── ISSUE_TEMPLATE/
-│   │   ├── bug_report.md
-│   │   └── feature_request.md
-│   └── PULL_REQUEST_TEMPLATE.md
+├── .github/                         # GitHub community templates (issues / PR) & release-sync workflows
 ├── app.manifest                     # UAC administrator manifest
 ├── BUILD.ps1                        # One-click build script (compile → publish → package)
 ├── .gitattributes                   # Git language stats exclusion (installer / peripheral scripts)
@@ -96,7 +103,7 @@ Output: `Publish\hydride-svc-win-x64-setup.exe`.
 Installer features:
 - Bilingual UI (English / Simplified Chinese), defaulting to system language
 - Smart version comparison: silent upgrade, reinstall prompt for same version, downgrade warning
-- Installs `hydride_svc64.exe`, `Libs/`; writes the service TOML config
+- Installs `hydride_svc64.exe`; writes the service TOML config
 - Registers and starts the service via Osmium with exit-code checks (Abort / Retry / Ignore on failure)
 - In silent mode (`/S`), waits for the old process to exit
 - On uninstall, deletes the service via Osmium and removes all files
@@ -109,14 +116,13 @@ Use the Inno Setup installer from [Releases](https://github.com/NXRKYMANE/Hydrid
 
 For manual deployment:
 1. Copy `hydride_svc64.exe` from `Publish/` to the target machine.
-2. Place `Libs/LIBPCL2.dll` in the same directory as the exe.
-3. Install [Osmium](https://github.com/NXRKYMANE/Osmium) (registers `os.exe` to PATH automatically).
-4. Register the service: `os.exe --install Libs\hydride_svc64.toml`
-5. Start the service: `os.exe --start hydride_svc64`
+2. Install [Osmium](https://github.com/NXRKYMANE/Osmium) (registers `os.exe` to PATH automatically).
+3. Register the service: `os.exe --install hydride_svc64.toml`
+4. Start the service: `os.exe --start hydride_svc64`
 
 ## Disclaimer
 
-**This project is essentially a rather trivial utility and cannot be guaranteed to work on all computers. Test the built-in memory cleanup of a PCL2 launcher first and watch for side effects; if there is no noticeable improvement or the overhead increases, remove this service immediately.**
+**This project is essentially a rather trivial utility and cannot be guaranteed to work on all computers. Flushing process working sets can temporarily slow down disk activity while paged memory is swapped back; if there is no noticeable improvement or the overhead increases, remove this service immediately.**
 
 ## Sponsor
 

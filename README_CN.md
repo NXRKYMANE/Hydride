@@ -4,26 +4,39 @@
   <img src="https://img.shields.io/github/followers/NXRKYMANE?style=social" />
   <img src="https://img.shields.io/github/forks/NXRKYMANE/Hydride" />
   <img src="https://img.shields.io/github/stars/NXRKYMANE/Hydride" />
-  <img src="https://img.shields.io/badge/-Rust-000000?style=flat&logo=rust&logoColor=white" />
-  <img src="https://img.shields.io/badge/Douyin-Ozones-000000?style=flat&logo=tiktok&logoColor=white" />
-  <img src="https://img.shields.io/badge/QQ-946777609-12B7F5?style=flat&logo=tencentqq&logoColor=white" />
-  <img src="https://komarev.com/ghpvc/?username=NXRKYMANE&repo=Hydride&label=Views&color=00BFFF&style=flat" />
+  <img src="https://img.shields.io/badge/-Rust-FFFFFF?style=flat&logo=rust&logoColor=black" />
+  <img src="https://img.shields.io/badge/Gitee-NXRKYMANE-FFFFFF?style=flat" />
+  <img src="https://img.shields.io/badge/AtomGit-NXRKYMANEX-FFFFFF?style=flat" />
+  <img src="https://img.shields.io/badge/Douyin-Ozones-FFFFFF?style=flat&logo=tiktok&logoColor=white" />
+  <img src="https://vbr.nathanchung.dev/badge?page_id=NXRKYMANE.Hydride&color=FFFFFF&leftColor=555555&label=Views" />
 </p>
 
-一个轻量高性能的物理内存清理服务，基于 Standby 与 PCL2 构建。 [SEE ENGLISH DOCS](README.md)
+一个轻量高性能的物理内存清理服务，完全基于原生 Win32 API 构建。 [SEE ENGLISH DOCS](README.md)
 
-采用高性能 **Rust** 编写，编译为单个原生二进制（约 150 KB，UPX 压缩），目标机器无需任何运行时。
+采用高性能 **Rust** 编写，编译为单个原生二进制（约 150 KB，UPX 压缩），目标机器无需任何运行时与外部引擎。
 
-> 本项目基于旧版 **PCL2**（Plain Craft Launcher 2，作者 **龙腾猫跃**）封装构建，将其核心内存清理引擎与系统 Standby 缓存清理结合，重新打包为具有双引擎动态调度和自动清理功能的长期运行服务。
+> 本项目在进程内原生完成内存清理：使用 Toolhelp32 API 枚举系统进程，通过 `SetProcessWorkingSetSize(-1, -1)`（EmptyWorkingSet）清空其工作集，再用 `NtSetSystemInformation` 清空系统 Standby 缓存——全部集成在单个自包含二进制中。
 
 ## 工作原理
 
-1. 启动时将 `Libs/LIBPCL2.dll`（base64）解码为 `wrcs.exe`，放到 `%WINDIR%\Temp\WRCS`。
-2. 每 60 秒一个周期，双引擎按内存使用率分档交错执行：
-   - **PCL2 引擎**（清工作集）：每 25% 一档，1–5 次/分，日志按 `Used` 格式
-   - **Standby 引擎**（内置，清缓存）：固定 1 次/分，日志按 `Standby` 格式
-3. 每次 PCL2 清理运行一次 `wrcs.exe --memory`，对比清理前后内存，任务均匀分布在整个周期内。
-4. 退出时强制终止所有 `wrcs` 进程并删除 `%WINDIR%\Temp\WRCS`。
+1. 每 60 秒一个周期，双引擎按内存使用率分档交错执行：
+   - **工作集引擎**（清空所有进程工作集）：每 25% 一档，1–5 次/分，日志按 `Used` 格式
+   - **Standby 引擎**（清缓存）：固定 1 次/分，日志按 `Standby` 格式
+2. **CPU 感知门控：** 系统 CPU 负载较高时降低工作集清理频率（≥30% 降 1 档、≥60% 降 2 档），负载 ≥85% 时整周期暂停，避免在老旧机器上造成清理引发的负载尖峰。
+3. 每次工作集清理枚举全部进程并逐一清空工作集（临时换出不活跃内存页），对比清理前后内存，任务均匀分布在整个周期内。
+3. Standby 引擎通过提升 `SeProfileSingleProcessPrivilege` 特权清空系统 Standby 列表。
+4. 单实例互斥锁防止并发清理互相冲突。
+
+## 效率模式（EcoQoS）
+
+服务进程与 Osmium 宿主均运行在任务管理器"效率模式"（ProcessPowerThrottling）下，按 CPU 负载自动开关：
+
+| 组件 | 配置项 | 行为 |
+| --- | --- | --- |
+| 服务（`hydride_svc64.exe`） | `eco_qos = "auto"` | 空闲（CPU < 10%）进入效率模式，繁忙（> 30%）退出 |
+| 宿主（`os.exe`） | `host_eco_qos = "auto"` | 空闲（CPU < 5%）进入，宿主或服务繁忙（> 20%）退出 |
+
+调整阈值：修改已部署配置 `ProgramData\Osmium\svcs\hydride_svc64.osiml`（`eco_qos_idle_cpu_pct` / `eco_qos_busy_cpu_pct` / `host_eco_qos_*` 字段），然后执行 `os.exe --refresh hydride_svc64`。
 
 ## 项目结构
 
@@ -39,14 +52,8 @@ Hydride/
 │   ├── Proj.bmp                     # 安装向导右上角小图（由 Proj.png 生成）
 │   ├── Proj.ico                     # 安装包与程序图标
 │   └── Proj.png                     # 图标源图
-├── Libs/
-│   └── LIBPCL2.dll                  # 内存清理引擎（base64 封装，运行时解码为 wrcs.exe）
 ├── Publish/                         # 构建产物（发布 exe 与安装包）
-├── .github/                         # Issue / PR 模板
-│   ├── ISSUE_TEMPLATE/
-│   │   ├── bug_report.md
-│   │   └── feature_request.md
-│   └── PULL_REQUEST_TEMPLATE.md
+├── .github/                         # GitHub 社区模板（Issue / PR）与 Release 镜像同步工作流
 ├── app.manifest                     # UAC 管理员权限清单
 ├── BUILD.ps1                        # 一键构建脚本（编译 → 发布 → 打包）
 ├── .gitattributes                   # Git 语言统计排除（安装脚本 / 周边脚本）
@@ -96,7 +103,7 @@ ISCC.exe Project\installer.iss
 安装包特性：
 - 中英文双语界面，默认跟随系统语言
 - 智能版本比较：升级静默、同版本询问重装、降级警告
-- 安装 `hydride_svc64.exe`、`Libs/`，写入服务 TOML 配置
+- 安装 `hydride_svc64.exe`，写入服务 TOML 配置
 - 通过 Osmium 注册并启动服务，全程退出码检查（失败弹「终止 / 重试 / 忽略」）
 - 静默模式（`/S`）下自动等待旧进程退出
 - 卸载时通过 Osmium 删除服务并移除所有文件
@@ -109,14 +116,13 @@ ISCC.exe Project\installer.iss
 
 手动部署：
 1. 将 `Publish/` 中的 `hydride_svc64.exe` 复制到目标机器。
-2. 将 `Libs/LIBPCL2.dll` 与 exe 放同一目录。
-3. 安装 [Osmium](https://github.com/NXRKYMANE/Osmium)（自动注册 `os.exe` 到 PATH）。
-4. 注册服务：`os.exe --install Libs\hydride_svc64.toml`
-5. 启动服务：`os.exe --start hydride_svc64`
+2. 安装 [Osmium](https://github.com/NXRKYMANE/Osmium)（自动注册 `os.exe` 到 PATH）。
+3. 注册服务：`os.exe --install hydride_svc64.toml`
+4. 启动服务：`os.exe --start hydride_svc64`
 
 ## 免责声明
 
-**本项目本质上只是一个比较鸡肋的工具，无法保证对所有计算机有效。建议先下载 PCL2 启动器测试其内存清理功能并留意副作用；若无明显效果甚至加重负担，请立即卸载本服务。**
+**本项目本质上只是一个比较鸡肋的工具，无法保证对所有计算机有效。清空进程工作集后，换出的内存页重新读回时可能短暂增加磁盘活动；若无明显效果甚至加重负担，请立即卸载本服务。**
 
 ## 赞助
 

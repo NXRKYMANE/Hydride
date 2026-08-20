@@ -2,7 +2,7 @@
 ; 功能：双语（默认跟随系统语言）/ 版本比较 / Osmium 服务注册与卸载 / 不创建开始菜单快捷方式
 
 #define MyAppName "Hydride"
-#define MyAppVersion "2.5.0"
+#define MyAppVersion "3.0.0"
 #define MyAppPublisher "Copyright (C) 2026 NXRKYMANE SOFTWARE"
 #define MyAppURL "https://github.com/NXRKYMANE/Hydride"
 #define MyAppExeName "hydride_svc64.exe"
@@ -35,7 +35,7 @@ CloseApplications=yes
 DisableDirPage=no
 DirExistsWarning=no
 VersionInfoVersion={#MyAppVersion}.0
-VersionInfoProductName=Hydride System Memory Manager Service
+VersionInfoProductName=Windows RAM Clean Service
 VersionInfoProductVersion={#MyAppVersion}.0
 VersionInfoCompany=NXRKYMANE SOFTWARE
 VersionInfoCopyright={#MyAppPublisher}
@@ -65,7 +65,6 @@ chinesesimp.PathTooLong=所选安装文件夹路径过长（%1 个字符），�
 
 [Files]
 Source: "..\Publish\hydride_svc64.exe"; DestDir: "{app}"; Flags: ignoreversion; AfterInstall: LogFile('{app}\hydride_svc64.exe')
-Source: "..\Libs\*"; DestDir: "{app}\Libs"; Flags: recursesubdirs createallsubdirs ignoreversion; AfterInstall: LogFile('{app}\Libs\')
 
 [Registry]
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\hydride_svc64.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\hydride_svc64.exe"; Flags: uninsdeletekey
@@ -386,12 +385,19 @@ procedure CreateServiceToml;
 var
   TomlPath: String;
 begin
-  TomlPath := ExpandConstant('{app}\Libs\hydride_svc64.toml');
+  TomlPath := ExpandConstant('{app}\hydride_svc64.toml');
   SaveStringToFile(TomlPath,
     'service_name = "hydride_svc64"' + #13#10 +
-    'service_display_name = "Hydride System Memory Manager Service"' + #13#10 +
+    'service_display_name = "Windows RAM Clean Service"' + #13#10 +
     'service_description = "Automatically manages system memory usage"' + #13#10 +
-    'service_executable_path = ''' + ExpandConstant('{app}\hydride_svc64.exe') + '''' + #13#10,
+    'service_executable_path = ''' + ExpandConstant('{app}\hydride_svc64.exe') + '''' + #13#10 +
+    '# EcoQoS efficiency mode: auto = enter when idle, exit when busy' + #13#10 +
+    'eco_qos = "auto"' + #13#10 +
+    'eco_qos_idle_cpu_pct = 10' + #13#10 +
+    'eco_qos_busy_cpu_pct = 30' + #13#10 +
+    'host_eco_qos = "auto"' + #13#10 +
+    'host_eco_qos_idle_cpu_pct = 5' + #13#10 +
+    'host_eco_qos_busy_cpu_pct = 20' + #13#10,
     False);
 end;
 
@@ -485,7 +491,7 @@ begin
   WaitForOldProcess;
 
   // 5. 若旧安装目录与本次目标目录不同，删除旧目录残留文件
-  // （改目录更新时旧 exe/Libs/卸载器会留在旧目录，此处统一清掉）
+  // （改目录更新时旧 exe/TOML/卸载器会留在旧目录，此处统一清掉）
   if RegQueryStringValue(HKLM, UninstallKey, 'InstallLocation', OldDir) or
      RegQueryStringValue(HKLM, NSISUninstallKey, 'InstallLocation', OldDir) then
   begin
@@ -503,17 +509,17 @@ end;
 // ── 服务注册：文件复制完成后调用（ssPostInstall）──
 procedure ConfigureService;
 begin
-  // 1. 写入服务 TOML（此时 {app}\Libs 已复制就位）
+  // 1. 写入服务 TOML
   CreateServiceToml;
 
   // 2. 注册服务（日志文本与 NSIS 版一致）
   AddLog('Registering Hydride service...');
-  if not RunOsmiumCommand(ExpandConstant('--install "{app}\Libs\hydride_svc64.toml"'), CustomMessage('RegisterFail')) then
+  if not RunOsmiumCommand(ExpandConstant('--install "{app}\hydride_svc64.toml"'), CustomMessage('RegisterFail')) then
     Exit;
 
   // 3. 注册成功后删除本地 TOML（配置已部署为 ProgramData\Osmium\svcs 下的 .osiml）
-  DeleteFile(ExpandConstant('{app}\Libs\hydride_svc64.toml'));
-  AddLog('Removed local config: {app}\Libs\hydride_svc64.toml');
+  DeleteFile(ExpandConstant('{app}\hydride_svc64.toml'));
+  AddLog('Removed local config: {app}\hydride_svc64.toml');
 
   // 4. 启动服务
   AddLog('Starting Hydride service...');

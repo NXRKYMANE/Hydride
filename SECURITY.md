@@ -29,7 +29,6 @@ Please provide:
 ## Security Design
 
 - The service is registered by Osmium and runs with LocalSystem privileges, performing only memory cleanup with no network listening
-- Single-instance mutex: `Global\Hydride_WRCS_SingleInstance` prevents multiple instances contending for the same temp directory
-- On exit, precisely terminates child processes created by this instance (PID recorded and process name verified) to avoid killing same-name processes on the system
-- The cleanup engine `wrcs.exe` runs with a hidden window, working directory `%WINDIR%\Temp\WRCS`, and the whole directory is deleted on exit
+- Single-instance mutex: `Global\Hydride_WRCS_SingleInstance` prevents multiple instances from cleaning memory concurrently
+- No external engines or temporary files: cleanup is performed in-process via Toolhelp32 enumeration and `SetProcessWorkingSetSize(-1, -1)`, with `SeProfileSingleProcessPrivilege` elevated only for the Standby purge
 - Rust single-file release (~150 KB, UPX-packed) with no runtime dependencies, reducing the supply-chain surface

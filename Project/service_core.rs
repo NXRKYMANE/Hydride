@@ -2,14 +2,9 @@
 #![allow(clippy::upper_case_acronyms)]
 
 use std::ffi::c_void;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-
-use base64::Engine;
 
 // ==================== 常量与全局状态 ====================
 
@@ -17,9 +12,16 @@ const CYCLE_MS: u64 = 60_000;
 const SE_PROFILE_SINGLE_PROCESS: u32 = 13;   // 清 Standby 列表所需特权
 const SYSTEM_MEMORY_LIST_INFO: i32 = 80;      // NtSetSystemInformation 信息类
 const MEMORY_PURGE_STANDBY_LIST: i32 = 4;     // 清空 Standby 列表命令
+const TH32CS_SNAPPROCESS: u32 = 0x0000_0002;  // 进程快照
+const PROCESS_QUERY_INFORMATION: u32 = 0x0400;
+const PROCESS_SET_QUOTA: u32 = 0x0100;        // 修剪工作集所需权限
+const MAX_PATH: usize = 260;
+const CPU_REDUCE_HIGH: f64 = 30.0;            // CPU ≥30% 降 1 档
+const CPU_REDUCE_HEAVY: f64 = 60.0;           // CPU ≥60% 降 2 档
+const CPU_PAUSE: f64 = 85.0;                  // CPU ≥85% 本周期暂停
 
-static CHILD_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static STOP: AtomicBool = AtomicBool::new(false);
+static LAST_CPU: Mutex<(u64, u64)> = Mutex::new((0, 0));  // 上次 (idle, total) 采样
 
 // ==================== Windows FFI ====================
 
@@ -34,6 +36,26 @@ struct MEMORYSTATUSEX {
     ull_total_virtual: u64,
     ull_avail_virtual: u64,
     ull_avail_extended_virtual: u64,
+}
+
+#[repr(C)]
+struct PROCESSENTRY32W {
+    dw_size: u32,
+    cnt_usage: u32,
+    th32_process_id: u32,
+    th32_default_heap_id: usize,
+    th32_module_id: u32,
+    cnt_threads: u32,
+    th32_parent_process_id: u32,
+    pc_pri_class_base: i32,
+    dw_flags: u32,
+    sz_exe_file: [u16; MAX_PATH],
+}
+
+#[repr(C)]
+struct FILETIME {
+    dw_low_date_time: u32,
+    dw_high_date_time: u32,
 }
 
 unsafe extern "system" {
@@ -61,6 +83,13 @@ unsafe extern "system" {
         current_thread: u8,
         old_value: *mut u8,
     ) -> i32;
+    fn CreateToolhelp32Snapshot(flags: u32, pid: u32) -> isize;
+    fn Process32FirstW(snapshot: isize, entry: *mut PROCESSENTRY32W) -> i32;
+    fn Process32NextW(snapshot: isize, entry: *mut PROCESSENTRY32W) -> i32;
+    fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
+    fn SetProcessWorkingSetSize(handle: *mut c_void, min: usize, max: usize) -> i32;
+    fn CloseHandle(handle: *mut c_void) -> i32;
+    fn GetSystemTimes(idle: *mut FILETIME, kernel: *mut FILETIME, user: *mut FILETIME) -> i32;
 }
 
 // ==================== 启动 ====================
@@ -73,63 +102,50 @@ pub fn main_entry() {
 
     enable_standby_privilege();
 
-    // 解码 LIBPCL2.dll 得到 wrcs.exe
-    let exe_dir = std::env::var("WINDIR")
-        .unwrap_or_else(|_| "C:\\Windows".to_string());
-    let exe_dir = PathBuf::from(exe_dir).join("Temp").join("WRCS");
-    let exe_path = exe_dir.join("wrcs.exe");
+    log("Windows RAM Clean Service started (Press Ctrl+C to exit)");
 
-    fs::create_dir_all(&exe_dir).ok();
-
-    let dll_path = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-        .unwrap_or_default()
-        .join("Libs")
-        .join("LIBPCL2.dll");
-
-    if !dll_path.exists() {
-        log(&format!("ERROR: Libs\\LIBPCL2.dll not found (tried: {})", dll_path.display()));
-        return;
-    }
-
-    if let Err(e) = decode_wrcs(&dll_path, &exe_path) {
-        log(&format!("ERROR: failed to decode wrcs.exe: {e}"));
-        return;
-    }
-    log(&format!("wrcs.exe written: {}", exe_path.display()));
-    log("Hydride System Memory Manager Service started (Press Ctrl+C to exit)");
-
-    // Ctrl+C 置位停止标志，主循环据此退出并执行清理
+    // Ctrl+C 置位停止标志，主循环据此退出
     ctrlc::set_handler(|| STOP.store(true, Ordering::SeqCst)).ok();
 
-    // 主服务循环：双引擎按内存使用率分档，同周期内交错执行
+    // 主服务循环：双引擎按内存分档 + CPU 门控，同周期内交错执行
     while !STOP.load(Ordering::SeqCst) {
         let mem_pct = get_memory_percent();
-        let pcl_runs = ((mem_pct / 25.0) as i32 + 1).clamp(1, 5);      // PCL2：每 25% 一档，1~5 次/分
-        let standby_runs = 1;                                          // Standby：固定 1 次/分
-        let pcl_interval = CYCLE_MS / pcl_runs as u64;
+        let cpu_pct = get_cpu_percent();
+        let standby_runs = 1;                                       // Standby：固定 1 次/分（系统调用开销可忽略）
+        // 内存定档（1~5 次/分），CPU 高负载降档、极高本周期暂停
+        let mem_runs = ((mem_pct / 25.0) as i32 + 1).clamp(1, 5);
+        let ws_runs = if cpu_pct >= CPU_PAUSE {
+            0
+        } else if cpu_pct >= CPU_REDUCE_HEAVY {
+            (mem_runs - 2).max(1)
+        } else if cpu_pct >= CPU_REDUCE_HIGH {
+            (mem_runs - 1).max(1)
+        } else {
+            mem_runs
+        };
+        let ws_interval = CYCLE_MS / ws_runs.max(1) as u64;
         let standby_interval = CYCLE_MS / standby_runs as u64;
 
         log(&format!(
-            "Mem {mem_pct:.1}% → PCL2 {pcl_runs} run(s)/min, Standby {standby_runs} run(s)/min"
+            "Mem {mem_pct:.1}% | CPU {cpu_pct:.0}% → WorkingSet {} run(s)/min, Standby {standby_runs} run(s)/min",
+            if ws_runs == 0 { "paused".to_string() } else { ws_runs.to_string() }
         ));
 
         // 交错执行：记录两引擎各自的下一次触发时刻（相对周期起点）
         let start = Instant::now();
-        let mut next_pcl = 0u64;
+        let mut next_ws = 0u64;
         let mut next_standby = 0u64;
-        let mut pcl_done = 0;
+        let mut ws_done = 0;
         let mut standby_done = 0;
 
         // 周期内循环：交错执行直到本周期（60s）结束，保证周期长度恒定
         while !STOP.load(Ordering::SeqCst) {
             let elapsed = start.elapsed().as_millis() as u64;
 
-            if pcl_done < pcl_runs && elapsed >= next_pcl {
-                run_cleanup_once(&exe_path, &dll_path, &exe_dir);
-                pcl_done += 1;
-                next_pcl += pcl_interval;
+            if ws_done < ws_runs && elapsed >= next_ws {
+                run_cleanup_once();
+                ws_done += 1;
+                next_ws += ws_interval;
             }
 
             if standby_done < standby_runs && elapsed >= next_standby {
@@ -145,7 +161,7 @@ pub fn main_entry() {
 
             // 等待两引擎中更早的下一次触发点（已完成的一侧等到周期结束；每次最多 1 秒）
             let wait_until = std::cmp::min(
-                if pcl_done < pcl_runs { next_pcl } else { CYCLE_MS },
+                if ws_done < ws_runs { next_ws } else { CYCLE_MS },
                 if standby_done < standby_runs { next_standby } else { CYCLE_MS },
             );
             let wait_ms = wait_until.saturating_sub(elapsed).min(1000);
@@ -157,7 +173,7 @@ pub fn main_entry() {
         let _ = std::io::stdout().flush();
     }
 
-    kill_and_cleanup(&exe_dir);
+    log("Service stopped.");
 }
 
 // ==================== 基础工具 ====================
@@ -180,7 +196,7 @@ fn log_cont(msg: &str) {
     let _ = lock.flush();
 }
 
-/// 单实例互斥：作为服务应全局唯一，避免多个实例争用同一临时目录
+/// 单实例互斥：作为服务应全局唯一，避免多个实例同时清理
 fn acquire_single_instance() -> bool {
     let name: Vec<u16> = "Global\\Hydride_WRCS_SingleInstance"
         .encode_utf16()
@@ -203,14 +219,6 @@ fn enable_standby_privilege() {
             "WARN: EnableStandbyPrivilege failed: NTSTATUS 0x{status:08X} (not running as administrator?)"
         ));
     }
-}
-
-/// 解码 LIBPCL2.dll（base64）为 wrcs.exe
-fn decode_wrcs(dll_path: &Path, exe_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let content = fs::read_to_string(dll_path)?;
-    let bytes = base64::engine::general_purpose::STANDARD.decode(content.trim())?;
-    fs::write(exe_path, bytes)?;
-    Ok(())
 }
 
 // ==================== 内存状态 ====================
@@ -243,12 +251,39 @@ fn get_used_memory_mb() -> u64 {
     (mem.ull_total_phys - mem.ull_avail_phys) / 1024 / 1024
 }
 
+/// 系统 CPU 使用率（0-100），基于两次采样差值；首次采样返回 0
+fn get_cpu_percent() -> f64 {
+    let mut idle = FILETIME { dw_low_date_time: 0, dw_high_date_time: 0 };
+    let mut kernel = FILETIME { dw_low_date_time: 0, dw_high_date_time: 0 };
+    let mut user = FILETIME { dw_low_date_time: 0, dw_high_date_time: 0 };
+    if unsafe { GetSystemTimes(&mut idle, &mut kernel, &mut user) } == 0 {
+        return 0.0;
+    }
+
+    let to_u64 = |ft: FILETIME| (ft.dw_high_date_time as u64) << 32 | ft.dw_low_date_time as u64;
+    let now_idle = to_u64(idle);
+    let now_total = now_idle + to_u64(kernel) + to_u64(user);
+
+    let mut last = LAST_CPU.lock().unwrap();
+    if last.1 == 0 || now_total <= last.1 {
+        *last = (now_idle, now_total);
+        return 0.0; // 首次采样或时间倒退，无法计算
+    }
+    let idle_delta = now_idle - last.0;
+    let total_delta = now_total - last.1;
+    *last = (now_idle, now_total);
+    if total_delta == 0 {
+        return 0.0;
+    }
+    (1.0 - idle_delta as f64 / total_delta as f64) * 100.0
+}
+
 /// 当前 Standby 缓存大小（MB），失败返回 0
 fn get_standby_mb() -> u64 {
-    // 先以 0 长度查询所需缓冲大小，再按字段偏移读取
+    // 先以 0 长度查询所需缓冲大小（必然返回长度不足，仅取 len），再按字段偏移读取
     let mut len = 0u32;
-    let status = unsafe { NtQuerySystemInformation(SYSTEM_MEMORY_LIST_INFO, std::ptr::null_mut(), 0, &mut len) };
-    if status != 0 || len == 0 {
+    let _ = unsafe { NtQuerySystemInformation(SYSTEM_MEMORY_LIST_INFO, std::ptr::null_mut(), 0, &mut len) };
+    if len == 0 {
         return 0;
     }
 
@@ -258,10 +293,76 @@ fn get_standby_mb() -> u64 {
         return 0;
     }
 
-    // StandbyPageCount 为第 7 个 ULONG_PTR（偏移 48），随后三类缓存细分；每页 4KB
+    // StandbyPageCount 为第 7 个 ULONG_PTR（偏移 48），随后 5 类缓存细分；每页 4KB
     let read_u64 = |off: usize| u64::from_le_bytes(buf[off..off + 8].try_into().unwrap());
-    let pages = read_u64(48) + read_u64(56) + read_u64(64) + read_u64(72);
+    let pages = read_u64(48) + read_u64(56) + read_u64(64) + read_u64(72) + read_u64(80) + read_u64(88);
     pages * 4 / 1024
+}
+
+// ==================== 工作集修剪引擎 ====================
+
+/// 遍历系统进程，对每个进程修剪工作集（EmptyWorkingSet），失败静默跳过
+fn trim_working_sets() {
+    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+    if snapshot == -1 {
+        log("Failed to enumerate processes (CreateToolhelp32Snapshot)");
+        return;
+    }
+
+    let mut entry = PROCESSENTRY32W {
+        dw_size: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+        cnt_usage: 0,
+        th32_process_id: 0,
+        th32_default_heap_id: 0,
+        th32_module_id: 0,
+        cnt_threads: 0,
+        th32_parent_process_id: 0,
+        pc_pri_class_base: 0,
+        dw_flags: 0,
+        sz_exe_file: [0; MAX_PATH],
+    };
+
+    let first = unsafe { Process32FirstW(snapshot, &mut entry) } != 0;
+    while first {
+        if entry.th32_process_id != 0 {
+            trim_working_set(entry.th32_process_id);
+        }
+        if unsafe { Process32NextW(snapshot, &mut entry) } == 0 {
+            break;
+        }
+    }
+    let _ = unsafe { CloseHandle(snapshot as *mut c_void) };
+}
+
+/// 对单个进程调用 SetProcessWorkingSetSize(-1, -1)（EmptyWorkingSet），权限不足或系统进程自动跳过
+fn trim_working_set(pid: u32) {
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_SET_QUOTA, 0, pid) };
+    if handle.is_null() {
+        return;
+    }
+    let _ = unsafe { SetProcessWorkingSetSize(handle, usize::MAX, usize::MAX) };
+    let _ = unsafe { CloseHandle(handle) };
+}
+
+/// 执行一次工作集清理：遍历进程 EmptyWorkingSet，按 Used 格式输出日志
+fn run_cleanup_once() {
+    let before = get_used_memory_mb();
+
+    trim_working_sets();
+
+    let after = get_used_memory_mb();
+    let delta = before as i64 - after as i64;
+    let pct_chg = if before > 0 {
+        delta.unsigned_abs() as f64 / before as f64 * 100.0
+    } else {
+        0.0
+    };
+    let arrow = if delta >= 0 { "↓" } else { "↑" };
+    log_cont(&format!(
+        "Used: {before}MB → {after}MB ({}{}MB, {pct_chg:.1}%{arrow})",
+        if delta >= 0 { "+" } else { "-" },
+        delta.unsigned_abs()
+    ));
 }
 
 // ==================== Standby 清理 ====================
@@ -286,103 +387,4 @@ fn clear_standby_list() {
     let after = get_standby_mb();
     let freed = before.saturating_sub(after);
     log_cont(&format!("Standby: {before}MB → {after}MB (freed {freed}MB)"));
-}
-
-// ==================== PCL2 引擎 ====================
-
-/// 确保 wrcs.exe 可用：被外部清理工具删除时从 LIBPCL2.dll 重新解码还原
-fn ensure_wrcs(exe_path: &Path, dll_path: &Path) {
-    if exe_path.exists() {
-        return;
-    }
-    if let Err(e) = decode_wrcs(dll_path, exe_path) {
-        log(&format!("Failed to restore wrcs.exe: {e}"));
-        return;
-    }
-    log(&format!("wrcs.exe missing, restored: {}", exe_path.display()));
-}
-
-/// 启动 wrcs.exe --memory 并等待其结束，超时（15 秒）则强制终止整棵进程树
-fn run_wrcs(exe_path: &Path) {
-    match Command::new(exe_path).arg("--memory").spawn() {
-        Ok(mut child) => {
-            let pid = child.id();
-            CHILD_PIDS.lock().unwrap().push(pid);
-
-            let deadline = Instant::now() + Duration::from_secs(15);
-            loop {
-                match child.try_wait() {
-                    // 正常退出：从列表移除，退出清理不再对已结束的进程执行 taskkill
-                    Ok(Some(_)) => {
-                        CHILD_PIDS.lock().unwrap().retain(|&p| p != pid);
-                        break;
-                    }
-                    Ok(None) if Instant::now() >= deadline => {
-                        kill_tree(pid);
-                        log(&format!("  wrcs PID {pid} timed out, killed"));
-                        break;
-                    }
-                    Ok(None) => std::thread::sleep(Duration::from_millis(100)),
-                    Err(e) => {
-                        log(&format!("Failed to wait wrcs PID {pid}: {e}"));
-                        break;
-                    }
-                }
-            }
-        }
-        Err(e) => log(&format!("Failed to run {}: {e}", exe_path.display())),
-    }
-}
-
-/// 强制终止整棵进程树（taskkill，输出重定向避免污染服务日志）
-fn kill_tree(pid: u32) {
-    let _ = Command::new("taskkill")
-        .args(["/PID", &pid.to_string(), "/T", "/F"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-}
-
-/// 执行一次 PCL2 内存清理：运行 wrcs.exe --memory，按 Used 格式输出日志
-fn run_cleanup_once(exe_path: &Path, dll_path: &Path, exe_dir: &Path) {
-    ensure_wrcs(exe_path, dll_path);
-
-    let before = get_used_memory_mb();
-
-    run_wrcs(exe_path);
-    fs::remove_dir_all(exe_dir.join("PCL")).ok();
-
-    let after = get_used_memory_mb();
-    let delta = before as i64 - after as i64;
-    let pct_chg = if before > 0 {
-        delta.unsigned_abs() as f64 / before as f64 * 100.0
-    } else {
-        0.0
-    };
-    let arrow = if delta >= 0 { "↓" } else { "↑" };
-    log_cont(&format!(
-        "Used: {before}MB → {after}MB ({}{}MB, {pct_chg:.1}%{arrow})",
-        if delta >= 0 { "+" } else { "-" },
-        delta.unsigned_abs()
-    ));
-}
-
-// ==================== 退出清理 ====================
-
-/// 服务退出时：只终止本实例创建的子进程，然后删除整个工作目录
-fn kill_and_cleanup(exe_dir: &Path) {
-    log("Cleaning up...");
-
-    let pids = CHILD_PIDS.lock().unwrap().clone();
-    for pid in pids {
-        kill_tree(pid);
-        log(&format!("  Terminated child process PID {pid}"));
-    }
-
-    match fs::remove_dir_all(exe_dir) {
-        Ok(()) => log(&format!("  Deleted {}", exe_dir.display())),
-        Err(e) => log(&format!("  Delete failed: {e}")),
-    }
-
-    log("Service stopped.");
 }
