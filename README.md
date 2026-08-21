@@ -13,18 +13,18 @@
 
 A lightweight high-performance physical memory cleaner service, built entirely on native Win32 APIs. [中文文档](README_CN.md)
 
-Built in high-performance **Rust** as a single native binary (~150 KB, UPX-packed) — no runtime or external engine required on the target machine.
+Built in high-performance **Rust** as a single native binary (~114 KB, UPX-packed) — no runtime or external engine required on the target machine.
 
 > This project performs memory cleanup natively in-process: it enumerates system processes with the Toolhelp32 API and flushes their working sets via `SetProcessWorkingSetSize(-1, -1)` (EmptyWorkingSet), then purges the system Standby cache via `NtSetSystemInformation` — all in one self-contained binary.
 
 ## How It Works
 
 1. Runs a 60-second cycle with two engines, interleaved by memory-usage tiers:
-   - **WorkingSet engine** (flush working sets of all processes): every 25% tier, 1–5 runs/min, logged in `Used` format
-   - **Standby engine** (purge cache): fixed at 1 run/min, logged in `Standby` format
-2. **CPU-aware gating:** the WorkingSet frequency is reduced when system CPU load is high (≥30% −1 tier, ≥60% −2 tiers) and paused entirely above 85%, so older machines never suffer cleanup-induced load spikes.
-3. Each WorkingSet cleanup enumerates every process once and empties its working set (temporarily paging out inactive memory), comparing memory before and after, spread evenly across the cycle.
-4. The Standby engine purges the system Standby list with elevated `SeProfileSingleProcessPrivilege`.
+   - **WorkingSet engine** (kernel-level `MemoryEmptyWorkingSets`, falls back to per-process EmptyWorkingSet): every 25% tier, 1–5 runs/min, logged in `Used` format
+   - **Cache engine** (Standby / low-priority Standby purge + combine memory lists + system file cache + registry cache): fixed at 1 run/min, logged in `Standby` format — the same cleanup chain as Mem Reduct & WinMemoryCleaner
+2. **CPU-aware gating:** both engines reduce frequency when system CPU load is high (≥30% −1 tier, ≥60% −2 tiers) and pause entirely above 85%, so older machines never suffer cleanup-induced load spikes.
+3. Each WorkingSet cleanup empties all process working sets (temporarily paging out inactive memory), comparing memory before and after, spread evenly across the cycle.
+4. The Cache engine purges the system cache lists with elevated `SeProfileSingleProcessPrivilege` (system file cache requires the service's LocalSystem account).
 5. Single-instance mutex prevents conflicting concurrent cleanups.
 
 ## Efficiency Mode (EcoQoS)

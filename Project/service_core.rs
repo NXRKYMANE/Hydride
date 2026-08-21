@@ -11,7 +11,12 @@ use std::time::{Duration, Instant};
 const CYCLE_MS: u64 = 60_000;
 const SE_PROFILE_SINGLE_PROCESS: u32 = 13;   // 清 Standby 列表所需特权
 const SYSTEM_MEMORY_LIST_INFO: i32 = 80;      // NtSetSystemInformation 信息类
+const SYSTEM_FILE_CACHE_INFO: i32 = 21;       // 清系统文件缓存工作集
+const SYSTEM_REGISTRY_RECON_INFO: i32 = 155;  // 清注册表缓存（win8.1+）
+const SYSTEM_COMBINE_PHYS_MEM_INFO: i32 = 130; // 合并物理内存列表（win10+）
+const MEMORY_EMPTY_WORKING_SETS: i32 = 2;     // 内核级清空全部进程工作集
 const MEMORY_PURGE_STANDBY_LIST: i32 = 4;     // 清空 Standby 列表命令
+const MEMORY_PURGE_LOW_PRIORITY_STANDBY: i32 = 5; // 清空低优先级 Standby 列表
 const TH32CS_SNAPPROCESS: u32 = 0x0000_0002;  // 进程快照
 const PROCESS_QUERY_INFORMATION: u32 = 0x0400;
 const PROCESS_SET_QUOTA: u32 = 0x0100;        // 修剪工作集所需权限
@@ -56,6 +61,21 @@ struct PROCESSENTRY32W {
 struct FILETIME {
     dw_low_date_time: u32,
     dw_high_date_time: u32,
+}
+
+// NtSetSystemInformation(SystemFileCacheInformation) 参数：64 字节结构，前 16 字节工作集上下限置 -1 清空文件缓存
+#[repr(C)]
+struct SystemFilecacheInformation {
+    ul_minimum_working_set: usize,
+    ul_maximum_working_set: usize,
+    _reserved: [u8; 48],
+}
+
+// NtSetSystemInformation(SystemCombinePhysicalMemoryInformation) 参数：Handle=0 + 空页数组触发合并（16 字节）
+#[repr(C)]
+struct SystemMemoryCombineInformationEx {
+    handle: *mut c_void,
+    pages: [usize; 1],
 }
 
 unsafe extern "system" {
@@ -111,7 +131,8 @@ pub fn main_entry() {
     while !STOP.load(Ordering::SeqCst) {
         let mem_pct = get_memory_percent();
         let cpu_pct = get_cpu_percent();
-        let standby_runs = 1;                                       // Standby：固定 1 次/分（系统调用开销可忽略）
+        // 缓存综合清理固定 1 次/分；CPU 极高时与工作集一起整周期暂停
+        let standby_runs = if cpu_pct >= CPU_PAUSE { 0 } else { 1 };
         // 内存定档（1~5 次/分），CPU 高负载降档、极高本周期暂停
         let mem_runs = ((mem_pct / 25.0) as i32 + 1).clamp(1, 5);
         let ws_runs = if cpu_pct >= CPU_PAUSE {
@@ -124,11 +145,12 @@ pub fn main_entry() {
             mem_runs
         };
         let ws_interval = CYCLE_MS / ws_runs.max(1) as u64;
-        let standby_interval = CYCLE_MS / standby_runs as u64;
+        let standby_interval = CYCLE_MS / standby_runs.max(1) as u64;
 
         log(&format!(
-            "Mem {mem_pct:.1}% | CPU {cpu_pct:.0}% → WorkingSet {} run(s)/min, Standby {standby_runs} run(s)/min",
-            if ws_runs == 0 { "paused".to_string() } else { ws_runs.to_string() }
+            "Mem {mem_pct:.1}% | CPU {cpu_pct:.0}% → WorkingSet {} run(s)/min, Standby {} run(s)/min",
+            if ws_runs == 0 { "paused".to_string() } else { ws_runs.to_string() },
+            if standby_runs == 0 { "paused".to_string() } else { standby_runs.to_string() }
         ));
 
         // 交错执行：记录两引擎各自的下一次触发时刻（相对周期起点）
@@ -149,7 +171,7 @@ pub fn main_entry() {
             }
 
             if standby_done < standby_runs && elapsed >= next_standby {
-                clear_standby_list();
+                clear_caches();
                 standby_done += 1;
                 next_standby += standby_interval;
             }
@@ -225,7 +247,7 @@ fn enable_standby_privilege() {
 
 fn get_memory_status() -> MEMORYSTATUSEX {
     let mut mem = MEMORYSTATUSEX {
-        dw_length: std::mem::size_of::<MEMORYSTATUSEX>() as u32,
+        dw_length: size_of::<MEMORYSTATUSEX>() as u32,
         dw_memory_load: 0,
         ull_total_phys: 0,
         ull_avail_phys: 0,
@@ -299,10 +321,33 @@ fn get_standby_mb() -> u64 {
     pages * 4 / 1024
 }
 
-// ==================== 工作集修剪引擎 ====================
+// ==================== 工作集清理引擎 ====================
+
+/// 内核级清空全部进程工作集（一条调用），失败（无特权）则回退到逐进程修剪
+fn trim_working_sets() {
+    if !set_memory_command(MEMORY_EMPTY_WORKING_SETS) {
+        trim_working_sets_by_enumeration();
+    }
+}
+
+/// 内核级内存列表命令（NtSetSystemInformation(SystemMemoryListInformation)），成功返回 true
+fn set_memory_command(command: i32) -> bool {
+    let status = unsafe {
+        NtSetSystemInformation(
+            SYSTEM_MEMORY_LIST_INFO,
+            &command as *const i32 as *const c_void,
+            size_of::<i32>() as u32,
+        )
+    };
+    if status != 0 {
+        log(&format!("MemoryList command {command} failed: NTSTATUS 0x{status:08X}"));
+        return false;
+    }
+    true
+}
 
 /// 遍历系统进程，对每个进程修剪工作集（EmptyWorkingSet），失败静默跳过
-fn trim_working_sets() {
+fn trim_working_sets_by_enumeration() {
     let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
     if snapshot == -1 {
         log("Failed to enumerate processes (CreateToolhelp32Snapshot)");
@@ -310,7 +355,7 @@ fn trim_working_sets() {
     }
 
     let mut entry = PROCESSENTRY32W {
-        dw_size: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+        dw_size: size_of::<PROCESSENTRY32W>() as u32,
         cnt_usage: 0,
         th32_process_id: 0,
         th32_default_heap_id: 0,
@@ -344,7 +389,7 @@ fn trim_working_set(pid: u32) {
     let _ = unsafe { CloseHandle(handle) };
 }
 
-/// 执行一次工作集清理：遍历进程 EmptyWorkingSet，按 Used 格式输出日志
+/// 执行一次工作集清理（内核级 + 遍历兜底），按 Used 格式输出日志
 fn run_cleanup_once() {
     let before = get_used_memory_mb();
 
@@ -365,23 +410,53 @@ fn run_cleanup_once() {
     ));
 }
 
-// ==================== Standby 清理 ====================
+// ==================== 缓存综合清理引擎 ====================
 
-/// 清空系统 Standby 列表（缓存页），按 Standby 格式输出日志
-fn clear_standby_list() {
+/// 清空系统各缓存列表（Standby/低优先级 Standby/系统文件缓存/注册表缓存/组合内存列表），
+/// 源自 Mem Reduct 与 WinMemoryCleaner 的默认清理集交叉；各步失败仅记日志
+fn clear_caches() {
     let before = get_standby_mb();
 
-    let command = MEMORY_PURGE_STANDBY_LIST;
+    set_memory_command(MEMORY_PURGE_STANDBY_LIST);
+    set_memory_command(MEMORY_PURGE_LOW_PRIORITY_STANDBY);
+
+    // 系统文件缓存：工作集上下限置 -1 触发清空（64 字节结构，服务 LocalSystem 环境下可用）
+    let cache_info = SystemFilecacheInformation {
+        ul_minimum_working_set: usize::MAX,
+        ul_maximum_working_set: usize::MAX,
+        _reserved: [0; 48],
+    };
     let status = unsafe {
         NtSetSystemInformation(
-            SYSTEM_MEMORY_LIST_INFO,
-            &command as *const i32 as *const c_void,
-            std::mem::size_of::<i32>() as u32,
+            SYSTEM_FILE_CACHE_INFO,
+            &cache_info as *const SystemFilecacheInformation as *const c_void,
+            size_of::<SystemFilecacheInformation>() as u32,
         )
     };
     if status != 0 {
-        log(&format!("ClearStandbyList failed: NTSTATUS 0x{status:08X}"));
-        return;
+        log(&format!("SystemFileCache clear failed: NTSTATUS 0x{status:08X}"));
+    }
+
+    // 注册表缓存（win8.1+）
+    let status = unsafe { NtSetSystemInformation(SYSTEM_REGISTRY_RECON_INFO, std::ptr::null(), 0) };
+    if status != 0 {
+        log(&format!("RegistryCache clear failed: NTSTATUS 0x{status:08X}"));
+    }
+
+    // 合并物理内存列表（win10+）
+    let combine = SystemMemoryCombineInformationEx {
+        handle: std::ptr::null_mut(),
+        pages: [0],
+    };
+    let status = unsafe {
+        NtSetSystemInformation(
+            SYSTEM_COMBINE_PHYS_MEM_INFO,
+            &combine as *const SystemMemoryCombineInformationEx as *const c_void,
+            size_of::<SystemMemoryCombineInformationEx>() as u32,
+        )
+    };
+    if status != 0 {
+        log(&format!("CombineMemoryLists failed: NTSTATUS 0x{status:08X}"));
     }
 
     let after = get_standby_mb();

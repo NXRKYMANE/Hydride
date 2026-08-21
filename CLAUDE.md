@@ -19,6 +19,7 @@
 - README.md（英文）+ README_CN.md（中文），首行互为语言切换链接
 
 ## 重要变动记录
+- 2026-08-21：清理引擎升级为「排名前二工具」交叉逻辑（源自 Mem Reduct + WinMemoryCleaner）——工作集引擎改内核级 MemoryEmptyWorkingSets(2)（失败回退逐进程修剪）；缓存引擎从单 Standby purge 升级为清理链：PurgeStandby(4)+LowPriorityStandby(5)+CombinePhysicalMemory(130,16B)+SystemFileCache(21,64B)+RegistryReconciliation(155)；实测单次缓存释放 743MB（原 631MB）、工作集 261MB；CPU≥85% 时两引擎均整周期暂停；README 双语同步；SystemFileCache 需服务 LocalSystem 账户
 - 2026-08-21：效率模式（EcoQoS，源自 Osmium）——installer.iss 生成的 TOML 新增 eco_qos/host_eco_qos（均 auto）及 4 个 CPU 阈值字段，服务与宿主按负载自动进出任务管理器效率模式；README 双语新增「效率模式」章节，调整阈值需改 .osiml 后 os.exe --refresh
 - 2026-08-21：服务显示名改为 Windows RAM Clean Service（installer.iss VersionInfoProductName + TOML service_display_name、service_core.rs 启动日志）；README 徽章区与 Osmium 项目统一（白色系 Rust/Gitee/AtomGit/Douyin/Views 徽章，移除 QQ 徽章与 komarev）
 - 2026-08-21：Release 资产镜像同步（源自 Osmium 项目）——复制 .github/scripts/sync-releases.ps1（缓存目录改 hydride-sync-cache）与 .github/workflows/release-sync.yml（仓库参数 NXRKYMANE/Hydride），Gitee + AtomGit 双镜像，触发：release 事件 + 手动 + 每日 4 点兜底；需仓库配置 GITEE_TOKEN / ATOMGIT_TOKEN secrets

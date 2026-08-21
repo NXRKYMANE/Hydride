@@ -31,4 +31,4 @@ Please provide:
 - The service is registered by Osmium and runs with LocalSystem privileges, performing only memory cleanup with no network listening
 - Single-instance mutex: `Global\Hydride_WRCS_SingleInstance` prevents multiple instances from cleaning memory concurrently
 - No external engines or temporary files: cleanup is performed in-process via Toolhelp32 enumeration and `SetProcessWorkingSetSize(-1, -1)`, with `SeProfileSingleProcessPrivilege` elevated only for the Standby purge
-- Rust single-file release (~150 KB, UPX-packed) with no runtime dependencies, reducing the supply-chain surface
+- Rust single-file release (~114 KB, UPX-packed) with no runtime dependencies, reducing the supply-chain surface
