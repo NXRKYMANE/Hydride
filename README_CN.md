@@ -24,17 +24,17 @@
    - **Standby 引擎**（清缓存）：固定 1 次/分，日志按 `Standby` 格式
 2. **CPU 感知门控：** 系统 CPU 负载较高时降低工作集清理频率（≥30% 降 1 档、≥60% 降 2 档），负载 ≥85% 时整周期暂停，避免在老旧机器上造成清理引发的负载尖峰。
 3. 每次工作集清理枚举全部进程并逐一清空工作集（临时换出不活跃内存页），对比清理前后内存，任务均匀分布在整个周期内。
-3. Standby 引擎通过提升 `SeProfileSingleProcessPrivilege` 特权清空系统 Standby 列表。
-4. 单实例互斥锁防止并发清理互相冲突。
+4. Standby 引擎通过提升 `SeProfileSingleProcessPrivilege` 特权清空系统 Standby 列表。
+5. 单实例互斥锁防止并发清理互相冲突。
 
 ## 效率模式（EcoQoS）
 
 服务进程与 Osmium 宿主均运行在任务管理器"效率模式"（ProcessPowerThrottling）下，按 CPU 负载自动开关：
 
-| 组件 | 配置项 | 行为 |
-| --- | --- | --- |
-| 服务（`hydride_svc64.exe`） | `eco_qos = "auto"` | 空闲（CPU < 10%）进入效率模式，繁忙（> 30%）退出 |
-| 宿主（`os.exe`） | `host_eco_qos = "auto"` | 空闲（CPU < 5%）进入，宿主或服务繁忙（> 20%）退出 |
+| 组件                       | 配置项                  | 行为                                              |
+| -------------------------- | ----------------------- | ------------------------------------------------- |
+| 服务 (`hydride_svc64.exe`) | `eco_qos = "auto"`      | 空闲（CPU < 10%）进入效率模式，繁忙（> 30%）退出  |
+| 宿主 (`os.exe`)            | `host_eco_qos = "auto"` | 空闲（CPU < 5%）进入，宿主或服务繁忙（> 20%）退出 |
 
 调整阈值：修改已部署配置 `ProgramData\Osmium\svcs\hydride_svc64.osiml`（`eco_qos_idle_cpu_pct` / `eco_qos_busy_cpu_pct` / `host_eco_qos_*` 字段），然后执行 `os.exe --refresh hydride_svc64`。
 
